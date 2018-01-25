@@ -192,7 +192,7 @@ main(
 
 		pdxFileImage = mallocReadFile(pdxFilePath, &pdxFileImageSizeInBytes);
 		if (pdxFileImage == NULL) {
-			printf("mallocReadFile '%s' failed.\n", mdxFilePath);
+			printf("mallocReadFile '%s' failed.\n", pdxFilePath);
 			exit(EXIT_FAILURE);
 		}
 	}
