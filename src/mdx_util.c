@@ -107,7 +107,11 @@ bool MdxGetTitle(
 	/* CR か LF が見つかるまでタイトル文字列をコピー */
 	uint8_t *dst = (uint8_t *)titleBuffer;
 	uint8_t *dstEnd = (uint8_t *)titleBuffer + titleBufferSizeInBytes;
-	while (dst < dstEnd) {
+	for (;;) {
+		if (dst == dstEnd - 1) {
+			*dst++ = '\0';
+			return false;		/* バッファ容量不足 */
+		}
 		if (ofsSrc >= mdxFileImageSizeInBytes) {
 			*dst++ = '\0';
 			return false;		/* 不正なデータ */
@@ -192,9 +196,14 @@ bool MdxGetPdxFileName(
 	}
 
 	/* \0 が見つかるまで PDX ファイル名文字列をコピー */
-	uint8_t *dst = (uint8_t *)pdxFileNameBuffer;
+	uint8_t *dstBegin = (uint8_t *)pdxFileNameBuffer;
+	uint8_t *dst = dstBegin;
 	uint8_t *dstEnd = (uint8_t *)pdxFileNameBuffer + pdxFileNameBufferSizeInBytes;
-	while (dst < dstEnd) {
+	for (;;) {
+		if (dst == dstEnd - 1) {
+			*dst++ = '\0';
+			return false;		/* バッファ容量不足 */
+		}
 		if (ofsSrc >= mdxFileImageSizeInBytes) {
 			*dst++ = '\0';
 			return false;		/* 不正なデータ */
@@ -205,6 +214,39 @@ bool MdxGetPdxFileName(
 			break;
 		}
 		*dst++ = c;
+	}
+
+	/* 拡張子が省略されている場合は修正 */
+	size_t length = dst - dstBegin;
+	bool hasExt = false;
+	if (length >= 5){
+		if (
+			(
+				dstBegin[length-5] == '.'
+			&&	(dstBegin[length-4] == 'P' || dstBegin[length-4] == 'p')
+			&&	(dstBegin[length-3] == 'D' || dstBegin[length-3] == 'd')
+			&&	(dstBegin[length-2] == 'X' || dstBegin[length-2] == 'x')
+			&&	dstBegin[length-1] == '\0'
+			)
+		) {
+			hasExt = true;
+		}
+	}
+	if (hasExt == false) {
+		const uint8_t *ext = ".PDX";
+		dst--;
+		for (;;) {
+			if (dst == dstEnd - 1) {
+				*dst++ = '\0';
+				return false;		/* バッファ容量不足 */
+			}
+			uint8_t c = *ext++;
+			if (c == '\0') {
+				*dst++ = '\0';
+				break;
+			}
+			*dst++ = c;
+		}
 	}
 
 	return true;
