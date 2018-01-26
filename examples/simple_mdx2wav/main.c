@@ -1,5 +1,4 @@
-/* Copyright (C) m_puusan */
-/* Copyright (C) 2018 Yosshin(@yosshin4004) */
+ï»¿/* Copyright (C) 2018 Yosshin(@yosshin4004) */
 
 #include <stdint.h>
 #include <stdbool.h>
@@ -120,7 +119,7 @@ main(
 	int		argc
 ,	char	**argv
 ){
-	/* ˆø”‰ğÍ */
+	/* å¼•æ•°è§£æ */
 	if (argc == 1) {
 		printf(
 			"mdx -> wav converter\n"
@@ -131,7 +130,7 @@ main(
 	}
 	char *mdxFilePath = argv[1];
 
-	/* MDX ƒtƒ@ƒCƒ‹‚Ì“Ç‚İ‚İ */
+	/* MDX ãƒ•ã‚¡ã‚¤ãƒ«ã®èª­ã¿è¾¼ã¿ */
 	uint32_t mdxFileImageSizeInBytes = 0;
 	void *mdxFileImage = mallocReadFile(mdxFilePath, &mdxFileImageSizeInBytes);
 	if (mdxFileImage == NULL) {
@@ -139,7 +138,7 @@ main(
 		exit(EXIT_FAILURE);
 	}
 
-	/* MDX ƒ^ƒCƒgƒ‹‚Ìæ“¾ */
+	/* MDX ã‚¿ã‚¤ãƒˆãƒ«ã®å–å¾— */
 	char mdxTitle[256];
 	if (
 		MdxGetTitle(
@@ -152,7 +151,7 @@ main(
 	}
 	printf("mdx title = %s\n", mdxTitle);
 
-	/* PDX ƒtƒ@ƒCƒ‹‚ğ—v‹‚·‚é‚© */
+	/* PDX ãƒ•ã‚¡ã‚¤ãƒ«ã‚’è¦æ±‚ã™ã‚‹ã‹ */
 	bool hasPdx;
 	if (
 		MdxHasPdxFileName(
@@ -164,7 +163,7 @@ main(
 		exit(EXIT_FAILURE);
 	}
 
-	/* PDX ƒtƒ@ƒCƒ‹‚Ì“Ç‚İ‚İ */
+	/* PDX ãƒ•ã‚¡ã‚¤ãƒ«ã®èª­ã¿è¾¼ã¿ */
 	uint32_t pdxFileImageSizeInBytes = 0;
 	void *pdxFileImage = NULL;
 	if (hasPdx) {
@@ -197,7 +196,7 @@ main(
 		}
 	}
 
-	/* MDX PDX ƒoƒbƒtƒ@‚Ì—v‹ƒTƒCƒY‚ğ‹‚ß‚é */
+	/* MDX PDX ãƒãƒƒãƒ•ã‚¡ã®è¦æ±‚ã‚µã‚¤ã‚ºã‚’æ±‚ã‚ã‚‹ */
 	uint32_t mdxBufferSizeInBytes = 0;
 	uint32_t pdxBufferSizeInBytes = 0;
 	if (
@@ -215,7 +214,7 @@ main(
 	printf("mdxBufferSizeInBytes = %d\n", mdxBufferSizeInBytes);
 	printf("pdxBufferSizeInBytes = %d\n", pdxBufferSizeInBytes);
 
-	/* MDX PDX ƒoƒbƒtƒ@‚ÌŠm•Û */
+	/* MDX PDX ãƒãƒƒãƒ•ã‚¡ã®ç¢ºä¿ */
 	void *mdxBuffer = NULL;
 	mdxBuffer = (uint8_t *)malloc(mdxBufferSizeInBytes);
 	if (mdxBuffer == NULL) {
@@ -231,7 +230,7 @@ main(
 		}
 	}
 
-	/* MDX PDX ƒoƒbƒtƒ@‚ğì¬ */
+	/* MDX PDX ãƒãƒƒãƒ•ã‚¡ã‚’ä½œæˆ */
 	if (
 		MdxUtilCreateMdxPdxBuffer(
 			mdxFileImage, mdxFileImageSizeInBytes,
@@ -244,11 +243,11 @@ main(
 		exit(EXIT_FAILURE);
 	}
 
-	/* ‚±‚Ì“_‚ÅAƒtƒ@ƒCƒ‹ƒCƒ[ƒW‚Í”jŠü‚µ‚Ä‚æ‚¢ */
+	/* ã“ã®æ™‚ç‚¹ã§ã€ãƒ•ã‚¡ã‚¤ãƒ«ã‚¤ãƒ¡ãƒ¼ã‚¸ã¯ç ´æ£„ã—ã¦ã‚ˆã„ */
 	if (pdxFileImage != NULL) free(pdxFileImage);
 	free(mdxFileImage);
 
-	/* ƒRƒ“ƒeƒLƒXƒg‚Ì‰Šú‰» */
+	/* ã‚³ãƒ³ãƒ†ã‚­ã‚¹ãƒˆã®åˆæœŸåŒ– */
 	#define MDX_BUFFER_SIZE		1 * 1024 * 1024
 	#define PDX_BUFFER_SIZE		2 * 1024 * 1024
 	#define MEMORY_POOL_SIZE	4 * 1024 * 1024
@@ -263,7 +262,7 @@ main(
 		exit(EXIT_FAILURE);
 	}
 
-	/* MXDRV ‚Ì‰Šú‰» */
+	/* MXDRV ã®åˆæœŸåŒ– */
 	#define SAMPLES_PER_SEC 48000
 	{
 		int ret = MXDRV_Start(
@@ -280,14 +279,14 @@ main(
 		}
 	}
 
-	/* PCM8 ‚ğ—LŒø‰» */
+	/* PCM8 ã‚’æœ‰åŠ¹åŒ– */
 	uint8_t *pcm8EnableFlag = (uint8_t *)MXDRV_GetWork(&context, MXDRV_WORK_PCM8);
 	*(pcm8EnableFlag) = 1;
 
-	/* ‰¹—Êİ’è */
+	/* éŸ³é‡è¨­å®š */
 	MXDRV_TotalVolume(&context, 256);
 
-	/* Ä¶ŠÔ‚ğ‹‚ß‚é */
+	/* å†ç”Ÿæ™‚é–“ã‚’æ±‚ã‚ã‚‹ */
 	int loop = 1;
 	int fadeout = 0;
 	float songDuration = MXDRV_MeasurePlayTime(
@@ -299,14 +298,14 @@ main(
 	) / 1000.0f;
 	printf("songDuration %.1f(sec)\n", songDuration);
 
-	/* MDX Ä¶ */
+	/* MDX å†ç”Ÿ */
 	MXDRV_Play(
 		&context,
 		mdxBuffer, mdxBufferSizeInBytes,
 		pdxBuffer, pdxBufferSizeInBytes
 	);
 
-	/* wav •Û‘¶ƒoƒbƒtƒ@‚ÌŠm•Û */
+	/* wav ä¿å­˜ãƒãƒƒãƒ•ã‚¡ã®ç¢ºä¿ */
 	int numSamples = (int)(SAMPLES_PER_SEC * songDuration);
 	int numChannels = 2;
 	int wavBufferSizeInBytes = sizeof(int16_t) * numSamples * numChannels;
@@ -316,14 +315,14 @@ main(
 		exit(EXIT_FAILURE);
 	}
 
-	/* wav •Û‘¶ƒoƒbƒtƒ@‚ÉƒŒƒ“ƒ_ƒŠƒ“ƒO */
+	/* wav ä¿å­˜ãƒãƒƒãƒ•ã‚¡ã«ãƒ¬ãƒ³ãƒ€ãƒªãƒ³ã‚° */
 	MXDRV_GetPCM(
 		&context,
 		wavBuffer,
 		numSamples
 	);
 
-	/* wav ƒtƒ@ƒCƒ‹‚É•Û‘¶ */
+	/* wav ãƒ•ã‚¡ã‚¤ãƒ«ã«ä¿å­˜ */
 	if (
 		serializeAsWav(
 			"out.wav",
@@ -339,7 +338,7 @@ main(
 		exit(EXIT_FAILURE);
 	}
 
-	/* I—¹ˆ— */
+	/* çµ‚äº†å‡¦ç† */
 	free(wavBuffer);
 	MXDRV_End(&context);
 	MxdrvContext_Terminate(&context);
