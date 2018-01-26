@@ -3,6 +3,9 @@
 //
 // Converted for Win32 [MXDRVg] V1.50a
 // Copyright (C) 2000 GORRY.
+//
+// Ported for 64bit environments
+// Copyright (C) 2018 Yosshin.
 
 // ;=============================================
 // ;  Filename mxdrv17.x
