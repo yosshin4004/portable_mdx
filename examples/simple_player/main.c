@@ -336,6 +336,8 @@ main(
 		}
 
 		/* KEY ‚Ì‰ÂŽ‹‰» */
+		static int keyOnLevelMeters[16] = {0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0};
+		static int keyOffLevelMeters[16] = {0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0};
 		{
 			#define KEY_DISPLAY_X	32
 			#define KEY_DISPLAY_Y	256
@@ -347,16 +349,15 @@ main(
 
 			/* FM 0~7 */
 			for (i = 0; i < 8; i++) {
+				int key = (fmChannels[i].S0012 + 27) / 64;
+				int volume = (fmChannels[i].S0022);
+				if (volume & 0x80) {
+					volume = (0x7F - (volume & 0x7F)) * 2;
+				} else {
+					volume = (volume & 0xF) * 0x11;
+				}
+
 				if (fmChannels[i].S0016 & (1 << 3)) {
-					int key = (fmChannels[i].S0012 + 27) / 64;
-
-					int volume = (fmChannels[i].S0022);
-					if (volume & 0x80) {
-						volume = (0x7F - (volume & 0x7F)) * 2;
-					} else {
-						volume = (volume & 0xF) * 0x11;
-					}
-
 					{
 						int x = key * KEY_WIDTH + ((fmChannels[i].S0014 - fmChannels[i].S0012) * KEY_WIDTH / 64);
 						int y = i * KEY_HEIGHT;
@@ -372,6 +373,17 @@ main(
 						SDL_FillRect(surface, &rect, color);
 					}
 				}
+
+				bool currentKeyOn = false;
+				bool logicalSumOfKeyOn = false;
+				MxdrvContext_GetFmKeyOn(&context, i, &currentKeyOn, &logicalSumOfKeyOn);
+				if (currentKeyOn == false) {
+					keyOffLevelMeters[i] = keyOffLevelMeters[i] * 127 / 128;
+				}
+				if (logicalSumOfKeyOn) {
+					keyOnLevelMeters[i] = volume;
+					keyOffLevelMeters[i] = volume;
+				}
 			}
 
 			/* PCM 0~7 */
@@ -382,19 +394,28 @@ main(
 				} else {
 					pcmChannel = &pcmChannels[i - 9];
 				}
+
+				int key = (pcmChannel->S0012 + 27) / 64;
+				int volume = (pcmChannel->S0022);
+				if (volume & 0x80) {
+					volume = (0x7F - (volume & 0x7F)) * 2;
+				} else {
+					volume = (volume & 0xF) * 0x11;
+				}
+
 				if (pcmChannel->S0016 & (1 << 3)) {
-					int key = (pcmChannel->S0012 + 27) / 64;
-					int volume = (pcmChannel->S0022);
-					if (volume & 0x80) {
-						volume = (0x7F - (volume & 0x7F)) * 2;
-					} else {
-						volume = (volume & 0xF) * 0x11;
-					}
 					int x = key * KEY_WIDTH;
 					int y = i * KEY_HEIGHT;
 					SDL_Rect rect = {x + KEY_DISPLAY_X, y + KEY_DISPLAY_Y, KEY_WIDTH, KEY_HEIGHT - 1};
 					uint32_t color = 0xFF0000 | (volume * 0x000101);
 					SDL_FillRect(surface, &rect, color);
+				}
+
+				bool logicalSumOfKeyOn = false;
+				MxdrvContext_GetPcmKeyOn(&context, i - 8, &logicalSumOfKeyOn);
+				if (logicalSumOfKeyOn) {
+					keyOnLevelMeters[i] = volume;
+					keyOffLevelMeters[i] = volume;
 				}
 			}
 
@@ -402,31 +423,6 @@ main(
 			#define LEVEL_METER_DISPLAY_Y	256
 			#define LEVEL_METER_WIDTH		32
 			#define LEVEL_METER_HEIGHT		16
-			static int keyOnLevelMeters[16] = {0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0};
-			static int keyOffLevelMeters[16] = {0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0};
-			for (i = 0; i < 8; i++) {
-				bool currentKeyOn = false;
-				bool logicalSumOfKeyOn = false;
-				MxdrvContext_GetFmKeyOn(&context, i, &currentKeyOn, &logicalSumOfKeyOn);
-
-				keyOnLevelMeters[i] = keyOnLevelMeters[i] * 15 / 16;
-				if (currentKeyOn == false) {
-					keyOffLevelMeters[i] = keyOffLevelMeters[i] * 63 / 64;
-				}
-				if (logicalSumOfKeyOn) {
-					keyOnLevelMeters[i] = 0xFF;
-					keyOffLevelMeters[i] = 0xFF;
-				}
-			}
-			for (i = 8; i < 16; i++) {
-				bool logicalSumOfKeyOn = false;
-				MxdrvContext_GetPcmKeyOn(&context, i - 8, &logicalSumOfKeyOn);
-
-				keyOnLevelMeters[i] = keyOnLevelMeters[i] * 15 / 16;
-				if (logicalSumOfKeyOn) {
-					keyOnLevelMeters[i] = 0xFF;
-				}
-			}
 			for (i = 0; i < 16; i++) {
 				{
 					int x = 0;
@@ -444,6 +440,7 @@ main(
 					uint32_t color = 0xFFFFFF;
 					SDL_FillRect(surface, &rect, color);
 				}
+				keyOnLevelMeters[i] = keyOnLevelMeters[i] * 31 / 32;
 			}
 		}
 
