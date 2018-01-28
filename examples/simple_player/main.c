@@ -280,7 +280,7 @@ main(
 		fmt.freq		= SAMPLES_PER_SEC;
 		fmt.format		= AUDIO_S16SYS;
 		fmt.channels	= 2;
-		fmt.samples		= 256;
+		fmt.samples		= 512;
 		fmt.callback	= sdlAudioCallback;
 		fmt.userdata	= &context;
 		if (SDL_OpenAudio(&fmt, NULL) < 0) {
