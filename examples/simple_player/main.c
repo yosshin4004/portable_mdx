@@ -116,6 +116,8 @@ int main(
 	float maxDuration = 0.0f;		/* 再生時間（秒）上限。0 は無制限を意味する */
 	bool enableFadeout = true;		/* ループ数か再生時間上限に達したらフェードアウトするか？ */
 	bool enableVisualizer = true;	/* ビジュアライザを利用するか？ */
+	float quitTimeInSeconds = 0.0f;
+	bool fadeouted = false;
 
 	/* 引数解析 */
 	if (argc == 1) {
@@ -400,7 +402,6 @@ int main(
 	}
 
 	/* メッセージループ */
-	bool fadeouted = false;
 	bool quitMessageLoop = false;
 	while (quitMessageLoop == false) {
 		SDL_Event event;
@@ -561,26 +562,45 @@ int main(
 			SDL_Delay(10);
 		}
 
-		/* フェードアウト処理および再生完了チェック */
+		/* フェードアウトおよび再生完了処理 */
 		{
 			const MXWORK_GLOBAL *global = (MXWORK_GLOBAL *)MXDRV_GetWork(&context, MXDRV_WORK_GLOBAL);
-			int numLoops = global->L002246;
 			float elapsedTimeInSeconds = (global->PLAYTIME * 1024LL / 4000) / 1000.0f;
-			if ((maxLoops != 0 && numLoops >= maxLoops)
-			||	(maxDuration != 0.0f && elapsedTimeInSeconds > maxDuration)
-			) {
-				if (enableFadeout) {
-					if (fadeouted == false) {
-						MXDRV_Fadeout(&context);
-						printf("fadeout...\n");
-						fadeouted = true;
+			int numLoops = global->L002246;
+			int finished = global->L001e13;
+
+			/* ループ数上限を超えるか再生時間上限を超えたらフェードアウト開始 */
+			if (finished == false) {
+				if ((maxLoops != 0 && numLoops >= maxLoops)
+				||	(maxDuration != 0.0f && elapsedTimeInSeconds > maxDuration)
+				) {
+					if (enableFadeout) {
+						if (fadeouted == false) {
+							MXDRV_Fadeout(&context);
+							printf("fadeout...\n");
+							fadeouted = true;
+						}
+					} else {
+						break;
 					}
-				} else {
-					break;
 				}
 			}
-			int finished = global->L001e13;
-			if (finished) break;
+
+			/* 再生完了を検出したら終了 */
+			if (finished) {
+				/* フェードアウト後の再生完了の場合は直ちに終了 */
+				if (fadeouted) break;
+
+				/* フェードアウト無しの再生完了の場合は 2 秒待って終了 */
+				if (fadeouted == false) {
+					if (quitTimeInSeconds == 0.0f) {
+						printf("finish.\n");
+						quitTimeInSeconds = elapsedTimeInSeconds + 2.0f;
+					} else {
+						if (elapsedTimeInSeconds > quitTimeInSeconds) break;
+					}
+				}
+			}
 		}
 	}
 
