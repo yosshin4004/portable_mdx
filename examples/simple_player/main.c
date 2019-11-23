@@ -54,28 +54,88 @@ static void sdlAudioCallback(
 	uint8_t	*stream,
 	int		len
 ){
-	MXDRV_GetPCM(
-		(MxdrvContext *)userdata,
-		stream,
-		len / (sizeof(uint16_t) * 2)
-	);
+	MXDRV_GetPCM((MxdrvContext *)userdata, stream, len / (sizeof(uint16_t) * 2));
 }
 
-int
-main(
-	int		argc
-,	char	**argv
+int main(
+	int		argc,
+	char	**argv
 ){
+	char *mdxFilePath = NULL;		/* 再生対象のファイルパス */
+	int maxLoops = 0;				/* ループ数上限。0 は無制限を意味する */
+	float maxDuration = 0.0f;		/* 再生時間（秒）上限。0 は無制限を意味する */
+	bool enableFadeout = true;		/* ループ数か再生時間上限に達したらフェードアウトするか？ */
+	bool enableVisualizer = true;	/* ビジュアライザを利用するか？ */
+
 	/* 引数解析 */
 	if (argc == 1) {
 		printf(
-			"simple mdx player\n"
-			"usage : %s mdxfilename\n",
+			"Simple mdx player\n"
+			"usage:\n"
+			"	%s [options] <mdxfilename>\n"
+			"option:\n"
+			"	-maxLoops <number>\n"
+			"		Specify the maximum number of loops.\n"
+			"		0 means infinite.\n"
+			"	-maxDuration <seconds>\n"
+			"		Specify the maximum playback length in seconds.\n"
+			"		0 means infinite.\n"
+			"	-noFadeout\n"
+			"		Disable fadeout.\n"
+			"	-noVisualize\n"
+			"		Disable visualizer.\n",
 			argv[0]
 		);
 		exit(EXIT_SUCCESS);
+	} else {
+		int i = 1;
+		while (i < argc) {
+			if (argv[i][0] == '-') {
+				if (strcmp(argv[i], "-maxLoops") == 0) {
+					i++;
+					if (i >= argc) {
+						printf("ERROR : No arg for '%s'.\n", argv[i - 1]);
+						return EXIT_FAILURE;
+					}
+					char *endptr = NULL;
+					maxLoops = strtol(argv[i], &endptr, 0);
+					if (*endptr != '\0') {
+						printf("ERROR : Invalid arg for '%s'.\n", argv[i - 1]);
+						return EXIT_FAILURE;
+					}
+				} else
+				if (strcmp(argv[i], "-maxDuration") == 0) {
+					i++;
+					if (i >= argc) {
+						printf("ERROR : No arg for '%s'.\n", argv[i - 1]);
+						return EXIT_FAILURE;
+					}
+					char *endptr = NULL;
+					maxDuration = strtof(argv[i], &endptr);
+					if (*endptr != '\0') {
+						printf("ERROR : Invalid arg for '%s'.\n", argv[i - 1]);
+						return EXIT_FAILURE;
+					}
+				} else
+				if (strcmp(argv[i], "-noFadeout") == 0) {
+					enableFadeout = false;
+				} else
+				if (strcmp(argv[i], "-noVisualize") == 0) {
+					enableVisualizer = false;
+				} else {
+					printf("ERROR : Invalid arg '%s'.\n", argv[i]);
+					return EXIT_FAILURE;
+				}
+			} else {
+				if (mdxFilePath != NULL) {
+					printf("ERROR : '%s' is already specified as a mdxfilename.\n", mdxFilePath);
+					return EXIT_FAILURE;
+				}
+				mdxFilePath = argv[i];
+			}
+			i++;
+		}
 	}
-	char *mdxFilePath = argv[1];
 
 	/* MDX ファイルの読み込み */
 	uint32_t mdxFileImageSizeInBytes = 0;
@@ -149,10 +209,8 @@ main(
 	if (
 		MdxGetRequiredBufferSize(
 			mdxFileImage,
-			mdxFileImageSizeInBytes,
-			pdxFileImageSizeInBytes,
-			&mdxBufferSizeInBytes,
-			&pdxBufferSizeInBytes
+			mdxFileImageSizeInBytes, pdxFileImageSizeInBytes,
+			&mdxBufferSizeInBytes, &pdxBufferSizeInBytes
 		) == false
 	) {
 		printf("MdxGetRequiredBufferSize failed.\n");
@@ -190,7 +248,7 @@ main(
 		exit(EXIT_FAILURE);
 	}
 
-	/* この時点で、ファイルイメージは破棄してよい */
+	/* この時点でファイルイメージは破棄してよい */
 	if (pdxFileImage != NULL) free(pdxFileImage);
 	free(mdxFileImage);
 
@@ -199,12 +257,7 @@ main(
 	#define PDX_BUFFER_SIZE		2 * 1024 * 1024
 	#define MEMORY_POOL_SIZE	4 * 1024 * 1024
 	MxdrvContext context;
-	if(
-		MxdrvContext_Initialize(
-			&context,
-			MEMORY_POOL_SIZE
-		) == false
-	) {
+	if (MxdrvContext_Initialize(&context, MEMORY_POOL_SIZE) == false) {
 		printf("MxdrvContext_Initialize failed.\n");
 		exit(EXIT_FAILURE);
 	}
@@ -234,16 +287,15 @@ main(
 	MXDRV_TotalVolume(&context, 256);
 
 	/* 再生時間を求める */
-	int loop = 1;
-	int fadeout = 0;
-	float songDuration = MXDRV_MeasurePlayTime(
-		&context,
-		mdxBuffer, mdxBufferSizeInBytes,
-		pdxBuffer, pdxBufferSizeInBytes,
-		loop,
-		fadeout
-	) / 1000.0f;
-	printf("songDuration %.1f(sec)\n", songDuration);
+	{
+		float songDurationInSeconds = MXDRV_MeasurePlayTime(
+			&context,
+			mdxBuffer, mdxBufferSizeInBytes,
+			pdxBuffer, pdxBufferSizeInBytes,
+			1, 0
+		) / 1000.0f;
+		printf("song duration %.1f(sec)\n", songDurationInSeconds);
+	}
 
 	/* MDX 再生 */
 	MXDRV_Play(
@@ -261,17 +313,21 @@ main(
 	/* メインウィンドウ作成 */
 	#define WINDOW_WIDTH	512
 	#define WINDOW_HEIGHT	512
-	SDL_Window *const window = SDL_CreateWindow(
-		"simple mdx player",
-		SDL_WINDOWPOS_UNDEFINED,
-		SDL_WINDOWPOS_UNDEFINED,
-		WINDOW_WIDTH, WINDOW_HEIGHT,
-		SDL_WINDOW_FULLSCREEN_DESKTOP * 0);
-	if (window == NULL) {
-		printf("SDL_CreateWindow() failed: %s", SDL_GetError());
-		exit(EXIT_FAILURE);
+	SDL_Window *window = NULL;
+	SDL_Surface *surface = NULL;
+	if (enableVisualizer) {
+		window = SDL_CreateWindow(
+			"Simple mdx player",
+			SDL_WINDOWPOS_UNDEFINED,
+			SDL_WINDOWPOS_UNDEFINED,
+			WINDOW_WIDTH, WINDOW_HEIGHT,
+			SDL_WINDOW_FULLSCREEN_DESKTOP * 0);
+		if (window == NULL) {
+			printf("SDL_CreateWindow() failed: %s", SDL_GetError());
+			exit(EXIT_FAILURE);
+		}
+		surface = SDL_GetWindowSurface(window);
 	}
-	SDL_Surface *surface = SDL_GetWindowSurface(window);
 
 	/* SDL AUDIO 初期化 */
 	{
@@ -280,7 +336,7 @@ main(
 		fmt.freq		= SAMPLES_PER_SEC;
 		fmt.format		= AUDIO_S16SYS;
 		fmt.channels	= 2;
-		fmt.samples		= 512;
+		fmt.samples		= 1024;
 		fmt.callback	= sdlAudioCallback;
 		fmt.userdata	= &context;
 		if (SDL_OpenAudio(&fmt, NULL) < 0) {
@@ -291,166 +347,193 @@ main(
 	}
 
 	/* メッセージループ */
-	bool bQuit = false;
-	while (bQuit == false) {
+	bool fadeouted = false;
+	bool quitMessageLoop = false;
+	while (quitMessageLoop == false) {
 		SDL_Event event;
 		while (SDL_PollEvent(&event)) {
 			switch (event.type) {
 				case SDL_KEYDOWN: {
 					if (event.key.keysym.sym == SDLK_ESCAPE) {
-						bQuit = true;
+						quitMessageLoop = true;
 					}
 				} break;
 				case SDL_QUIT: {
-					bQuit = true;
+					quitMessageLoop = true;
 				} break;
 			}
 		}
 
-		/* 画面消去 */
-		SDL_FillRect(surface, NULL, 0);
+		/* ビジュアライザ */
+		if (enableVisualizer) {
+			/* 画面消去 */
+			SDL_FillRect(surface, NULL, 0);
 
-		/* OPM レジスタの可視化 */
-		{
-			static int levelMeters[256];
-			#define NUM_PIXELS_PER_COLUMN	64
-			#define NUM_PIXELS_PER_ROW		8
-			#define NUM_PIXELS_PER_BIT		7
-			int regIndex, bit;
-			for (regIndex = 0; regIndex < 256; regIndex++) {
-				uint8_t regVal = 0;
-				bool updated = false;
-				MxdrvContext_GetOpmReg(&context, regIndex, &regVal, &updated);
-				for (bit = 0; bit < 8; bit++) {
-					int x = (regIndex & 7) * NUM_PIXELS_PER_COLUMN + bit * NUM_PIXELS_PER_BIT;
-					int y = (regIndex / 8) * NUM_PIXELS_PER_ROW;
-					SDL_Rect rect = {x, y, NUM_PIXELS_PER_BIT - 1, NUM_PIXELS_PER_ROW - 1};
-					uint32_t color = 0x202020;
-					levelMeters[regIndex] = levelMeters[regIndex] * 15 / 16;
-					if (updated) levelMeters[regIndex] = 0x80;
-					if (regVal & (1 << bit)) color = 0x70607F;
-					color += levelMeters[regIndex] * 0x010101;
-					SDL_FillRect(surface, &rect, color);
-				}
-			}
-		}
-
-		/* KEY の可視化 */
-		static int keyOnLevelMeters[16] = {0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0};
-		static int keyOffLevelMeters[16] = {0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0};
-		{
-			#define KEY_DISPLAY_X	32
-			#define KEY_DISPLAY_Y	256
-			#define KEY_WIDTH		5
-			#define KEY_HEIGHT		16
-			int i;
-			const MXWORK_CH *fmChannels = (MXWORK_CH *)MXDRV_GetWork(&context, MXDRV_WORK_FM);
-			const MXWORK_CH *pcmChannels = (MXWORK_CH *)MXDRV_GetWork(&context, MXDRV_WORK_PCM);
-
-			/* FM 0~7 */
-			for (i = 0; i < 8; i++) {
-				int key = (fmChannels[i].S0012 + 27) / 64;
-				int volume = (fmChannels[i].S0022);
-				if (volume & 0x80) {
-					volume = (0x7F - (volume & 0x7F)) * 2;
-				} else {
-					volume = (volume & 0xF) * 0x11;
-				}
-
-				if (fmChannels[i].S0016 & (1 << 3)) {
-					{
-						int x = key * KEY_WIDTH + ((fmChannels[i].S0014 - fmChannels[i].S0012) * KEY_WIDTH / 64);
-						int y = i * KEY_HEIGHT;
-						SDL_Rect rect = {x + KEY_DISPLAY_X, y + KEY_DISPLAY_Y, KEY_WIDTH, KEY_HEIGHT - 1};
-						uint32_t color = 0x008000;
+			/* OPM レジスタの可視化 */
+			{
+				static int levelMeters[256];
+				#define NUM_PIXELS_PER_COLUMN	64
+				#define NUM_PIXELS_PER_ROW		8
+				#define NUM_PIXELS_PER_BIT		7
+				int regIndex, bit;
+				for (regIndex = 0; regIndex < 256; regIndex++) {
+					uint8_t regVal = 0;
+					bool updated = false;
+					MxdrvContext_GetOpmReg(&context, regIndex, &regVal, &updated);
+					for (bit = 0; bit < 8; bit++) {
+						int x = (regIndex & 7) * NUM_PIXELS_PER_COLUMN + bit * NUM_PIXELS_PER_BIT;
+						int y = (regIndex / 8) * NUM_PIXELS_PER_ROW;
+						SDL_Rect rect = {x, y, NUM_PIXELS_PER_BIT - 1, NUM_PIXELS_PER_ROW - 1};
+						uint32_t color = 0x202020;
+						levelMeters[regIndex] = levelMeters[regIndex] * 15 / 16;
+						if (updated) levelMeters[regIndex] = 0x80;
+						if (regVal & (1 << bit)) color = 0x70607F;
+						color += levelMeters[regIndex] * 0x010101;
 						SDL_FillRect(surface, &rect, color);
 					}
-					{
+				}
+			}
+
+			/* KEY の可視化 */
+			static int keyOnLevelMeters[16] = {0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0};
+			static int keyOffLevelMeters[16] = {0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0};
+			{
+				#define KEY_DISPLAY_X	32
+				#define KEY_DISPLAY_Y	256
+				#define KEY_WIDTH		5
+				#define KEY_HEIGHT		16
+				int i;
+				const MXWORK_CH *fmChannels = (MXWORK_CH *)MXDRV_GetWork(&context, MXDRV_WORK_FM);
+				const MXWORK_CH *pcmChannels = (MXWORK_CH *)MXDRV_GetWork(&context, MXDRV_WORK_PCM);
+
+				/* FM 0~7 */
+				for (i = 0; i < 8; i++) {
+					int key = (fmChannels[i].S0012 + 27) / 64;
+					int volume = (fmChannels[i].S0022);
+					if (volume & 0x80) {
+						volume = (0x7F - (volume & 0x7F)) * 2;
+					} else {
+						volume = (volume & 0xF) * 0x11;
+					}
+
+					if (fmChannels[i].S0016 & (1 << 3)) {
+						{
+							int x = key * KEY_WIDTH + ((fmChannels[i].S0014 - fmChannels[i].S0012) * KEY_WIDTH / 64);
+							int y = i * KEY_HEIGHT;
+							SDL_Rect rect = {x + KEY_DISPLAY_X, y + KEY_DISPLAY_Y, KEY_WIDTH, KEY_HEIGHT - 1};
+							uint32_t color = 0x008000;
+							SDL_FillRect(surface, &rect, color);
+						}
+						{
+							int x = key * KEY_WIDTH;
+							int y = i * KEY_HEIGHT;
+							SDL_Rect rect = {x + KEY_DISPLAY_X, y + KEY_DISPLAY_Y, KEY_WIDTH, KEY_HEIGHT - 1};
+							uint32_t color = 0x0000FF | (volume * 0x010100);
+							SDL_FillRect(surface, &rect, color);
+						}
+					}
+
+					bool currentKeyOn = false;
+					bool logicalSumOfKeyOn = false;
+					MxdrvContext_GetFmKeyOn(&context, i, &currentKeyOn, &logicalSumOfKeyOn);
+					if (currentKeyOn == false) {
+						keyOffLevelMeters[i] = keyOffLevelMeters[i] * 127 / 128;
+					}
+					if (logicalSumOfKeyOn) {
+						keyOnLevelMeters[i] = volume;
+						keyOffLevelMeters[i] = volume;
+					}
+				}
+
+				/* PCM 0~7 */
+				for (i = 8; i < 16; i++) {
+					const MXWORK_CH *pcmChannel;
+					if (i == 8) {
+						pcmChannel = &fmChannels[8];
+					} else {
+						pcmChannel = &pcmChannels[i - 9];
+					}
+
+					int key = (pcmChannel->S0012 + 27) / 64;
+					int volume = (pcmChannel->S0022);
+					if (volume & 0x80) {
+						volume = (0x7F - (volume & 0x7F)) * 2;
+					} else {
+						volume = (volume & 0xF) * 0x11;
+					}
+
+					if (pcmChannel->S0016 & (1 << 3)) {
 						int x = key * KEY_WIDTH;
 						int y = i * KEY_HEIGHT;
 						SDL_Rect rect = {x + KEY_DISPLAY_X, y + KEY_DISPLAY_Y, KEY_WIDTH, KEY_HEIGHT - 1};
-						uint32_t color = 0x0000FF | (volume * 0x010100);
+						uint32_t color = 0xFF0000 | (volume * 0x000101);
 						SDL_FillRect(surface, &rect, color);
+					}
+
+					bool logicalSumOfKeyOn = false;
+					MxdrvContext_GetPcmKeyOn(&context, i - 8, &logicalSumOfKeyOn);
+					if (logicalSumOfKeyOn) {
+						keyOnLevelMeters[i] = volume;
+						keyOffLevelMeters[i] = volume;
 					}
 				}
 
-				bool currentKeyOn = false;
-				bool logicalSumOfKeyOn = false;
-				MxdrvContext_GetFmKeyOn(&context, i, &currentKeyOn, &logicalSumOfKeyOn);
-				if (currentKeyOn == false) {
-					keyOffLevelMeters[i] = keyOffLevelMeters[i] * 127 / 128;
-				}
-				if (logicalSumOfKeyOn) {
-					keyOnLevelMeters[i] = volume;
-					keyOffLevelMeters[i] = volume;
-				}
-			}
-
-			/* PCM 0~7 */
-			for (i = 8; i < 16; i++) {
-				const MXWORK_CH *pcmChannel;
-				if (i == 8) {
-					pcmChannel = &fmChannels[8];
-				} else {
-					pcmChannel = &pcmChannels[i - 9];
-				}
-
-				int key = (pcmChannel->S0012 + 27) / 64;
-				int volume = (pcmChannel->S0022);
-				if (volume & 0x80) {
-					volume = (0x7F - (volume & 0x7F)) * 2;
-				} else {
-					volume = (volume & 0xF) * 0x11;
-				}
-
-				if (pcmChannel->S0016 & (1 << 3)) {
-					int x = key * KEY_WIDTH;
-					int y = i * KEY_HEIGHT;
-					SDL_Rect rect = {x + KEY_DISPLAY_X, y + KEY_DISPLAY_Y, KEY_WIDTH, KEY_HEIGHT - 1};
-					uint32_t color = 0xFF0000 | (volume * 0x000101);
-					SDL_FillRect(surface, &rect, color);
-				}
-
-				bool logicalSumOfKeyOn = false;
-				MxdrvContext_GetPcmKeyOn(&context, i - 8, &logicalSumOfKeyOn);
-				if (logicalSumOfKeyOn) {
-					keyOnLevelMeters[i] = volume;
-					keyOffLevelMeters[i] = volume;
+				#define LEVEL_METER_DISPLAY_X	0
+				#define LEVEL_METER_DISPLAY_Y	256
+				#define LEVEL_METER_WIDTH		32
+				#define LEVEL_METER_HEIGHT		16
+				for (i = 0; i < 16; i++) {
+					{
+						int x = 0;
+						int y = i * LEVEL_METER_HEIGHT;
+						int w = keyOffLevelMeters[i] * LEVEL_METER_WIDTH / 0xFF;
+						SDL_Rect rect = {x + LEVEL_METER_DISPLAY_X, y + LEVEL_METER_DISPLAY_Y, w, LEVEL_METER_HEIGHT - 1};
+						uint32_t color = 0x404040;
+						SDL_FillRect(surface, &rect, color);
+					}
+					{
+						int x = 0;
+						int y = i * LEVEL_METER_HEIGHT;
+						int w = keyOnLevelMeters[i] * LEVEL_METER_WIDTH / 0xFF;
+						SDL_Rect rect = {x + LEVEL_METER_DISPLAY_X, y + LEVEL_METER_DISPLAY_Y, w, LEVEL_METER_HEIGHT - 1};
+						uint32_t color = 0xFFFFFF;
+						SDL_FillRect(surface, &rect, color);
+					}
+					keyOnLevelMeters[i] = keyOnLevelMeters[i] * 31 / 32;
 				}
 			}
 
-			#define LEVEL_METER_DISPLAY_X	0
-			#define LEVEL_METER_DISPLAY_Y	256
-			#define LEVEL_METER_WIDTH		32
-			#define LEVEL_METER_HEIGHT		16
-			for (i = 0; i < 16; i++) {
-				{
-					int x = 0;
-					int y = i * LEVEL_METER_HEIGHT;
-					int w = keyOffLevelMeters[i] * LEVEL_METER_WIDTH / 0xFF;
-					SDL_Rect rect = {x + LEVEL_METER_DISPLAY_X, y + LEVEL_METER_DISPLAY_Y, w, LEVEL_METER_HEIGHT - 1};
-					uint32_t color = 0x404040;
-					SDL_FillRect(surface, &rect, color);
-				}
-				{
-					int x = 0;
-					int y = i * LEVEL_METER_HEIGHT;
-					int w = keyOnLevelMeters[i] * LEVEL_METER_WIDTH / 0xFF;
-					SDL_Rect rect = {x + LEVEL_METER_DISPLAY_X, y + LEVEL_METER_DISPLAY_Y, w, LEVEL_METER_HEIGHT - 1};
-					uint32_t color = 0xFFFFFF;
-					SDL_FillRect(surface, &rect, color);
-				}
-				keyOnLevelMeters[i] = keyOnLevelMeters[i] * 31 / 32;
-			}
+			/* 画面更新 */
+			SDL_UpdateWindowSurface(window);
+			SDL_Delay(10);
 		}
 
-		/* 画面更新 */
-		SDL_UpdateWindowSurface(window);
-		SDL_Delay(10);
+		/* フェードアウト処理および再生完了チェック */
+		{
+			const MXWORK_GLOBAL *global = (MXWORK_GLOBAL *)MXDRV_GetWork(&context, MXDRV_WORK_GLOBAL);
+			int numLoops = global->L002246;
+			float elapsedTimeInSeconds = (global->PLAYTIME * 1024LL / 4000) / 1000.0f;
+			if ((maxLoops != 0 && numLoops >= maxLoops)
+			||	(maxDuration != 0.0f && elapsedTimeInSeconds > maxDuration)
+			) {
+				if (enableFadeout) {
+					if (fadeouted == false) {
+						MXDRV_Fadeout(&context);
+						printf("fadeout...\n");
+						fadeouted = true;
+					}
+				} else {
+					break;
+				}
+			}
+			int finished = global->L001e13;
+			if (finished) break;
+		}
 	}
 
 	/* 終了処理 */
-	SDL_DestroyWindow(window);
+	printf("done.\n");
+	if (window != NULL) SDL_DestroyWindow(window);
 	SDL_Quit();
 	MXDRV_End(&context);
 	MxdrvContext_Terminate(&context);
