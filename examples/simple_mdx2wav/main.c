@@ -79,7 +79,7 @@ bool serializeAsWav(
 		uint32_t	samplesPerSec;
 		uint32_t	bytesPerSec;
 		uint16_t	bytesPerSample;
-		uint16_t	bitsPerSample;
+		uint16_t	bitsPerSampleComponent;
 	} WavFormatChunk;
 	typedef struct {
 		WavHeader		wavHeader;
@@ -114,16 +114,16 @@ bool serializeAsWav(
 	return true;
 }
 
-int
-main(
-	int		argc
-,	char	**argv
+int main(
+	int		argc,
+	char	**argv
 ){
 	/* 引数解析 */
 	if (argc == 1) {
 		printf(
-			"mdx -> wav converter\n"
-			"usage : %s mdxfilename\n",
+			"Simple mdx -> wav converter\n"
+			"usage:\n"
+			"	%s <mdxfilename>\n",
 			argv[0]
 		);
 		exit(EXIT_SUCCESS);
@@ -202,10 +202,8 @@ main(
 	if (
 		MdxGetRequiredBufferSize(
 			mdxFileImage,
-			mdxFileImageSizeInBytes,
-			pdxFileImageSizeInBytes,
-			&mdxBufferSizeInBytes,
-			&pdxBufferSizeInBytes
+			mdxFileImageSizeInBytes, pdxFileImageSizeInBytes,
+			&mdxBufferSizeInBytes, &pdxBufferSizeInBytes
 		) == false
 	) {
 		printf("MdxGetRequiredBufferSize failed.\n");
@@ -243,7 +241,7 @@ main(
 		exit(EXIT_FAILURE);
 	}
 
-	/* この時点で、ファイルイメージは破棄してよい */
+	/* この時点でファイルイメージは破棄してよい */
 	if (pdxFileImage != NULL) free(pdxFileImage);
 	free(mdxFileImage);
 
@@ -252,12 +250,7 @@ main(
 	#define PDX_BUFFER_SIZE		2 * 1024 * 1024
 	#define MEMORY_POOL_SIZE	4 * 1024 * 1024
 	MxdrvContext context;
-	if (
-		MxdrvContext_Initialize(
-			&context,
-			MEMORY_POOL_SIZE
-		) == false
-	) {
+	if (MxdrvContext_Initialize(&context, MEMORY_POOL_SIZE) == false) {
 		printf("MxdrvContext_Initialize failed.\n");
 		exit(EXIT_FAILURE);
 	}
@@ -287,16 +280,13 @@ main(
 	MXDRV_TotalVolume(&context, 256);
 
 	/* 再生時間を求める */
-	int loop = 1;
-	int fadeout = 0;
-	float songDuration = MXDRV_MeasurePlayTime(
+	float songDurationInSeconds = MXDRV_MeasurePlayTime(
 		&context,
 		mdxBuffer, mdxBufferSizeInBytes,
 		pdxBuffer, pdxBufferSizeInBytes,
-		loop,
-		fadeout
+		1, 0
 	) / 1000.0f;
-	printf("songDuration %.1f(sec)\n", songDuration);
+	printf("song duration %.1f(sec)\n", songDurationInSeconds);
 
 	/* MDX 再生 */
 	MXDRV_Play(
@@ -306,7 +296,7 @@ main(
 	);
 
 	/* wav 保存バッファの確保 */
-	int numSamples = (int)(SAMPLES_PER_SEC * songDuration);
+	int numSamples = (int)(SAMPLES_PER_SEC * songDurationInSeconds);
 	int numChannels = 2;
 	int wavBufferSizeInBytes = sizeof(int16_t) * numSamples * numChannels;
 	int16_t *wavBuffer = (int16_t *)malloc(wavBufferSizeInBytes);
@@ -315,12 +305,8 @@ main(
 		exit(EXIT_FAILURE);
 	}
 
-	/* wav 保存バッファにレンダリング */
-	MXDRV_GetPCM(
-		&context,
-		wavBuffer,
-		numSamples
-	);
+	/* wav 保存バッファにデコード */
+	MXDRV_GetPCM(&context, wavBuffer, numSamples);
 
 	/* wav ファイルに保存 */
 	if (
@@ -330,7 +316,7 @@ main(
 			numChannels,
 			numSamples,
 			SAMPLES_PER_SEC,
-			1 /*WAVE_FORMAT_PCM*/,
+			1 /* WAVE_FORMAT_PCM */,
 			16
 		) == false
 	) {
