@@ -12,6 +12,10 @@
 	Ported for 64bit environments
 		Copyright (C) 2018 Yosshin.
 
+# スクリーンショット
+example の simple_player 実行中のスクリーンショット。
+![screen_shot](https://user-images.githubusercontent.com/11882108/69473608-bb61fb80-0df9-11ea-9edc-81b37ccd7cac.png)
+
 # 解説
 
 mdx デコーダーです。
