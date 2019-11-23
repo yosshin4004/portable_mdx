@@ -18,6 +18,7 @@
 	#include <libgen.h>		/* for dirname() */
 #endif
 
+/* メモリ確保した領域にファイルを読み込む */
 void *mallocReadFile(
 	const char *fileName,
 	uint32_t *sizeRet
@@ -49,14 +50,63 @@ void *mallocReadFile(
 	return buffer;
 }
 
+/*
+	windows 環境の場合、SDL AUDIO コールバックに与えられた処理時間が非常に短い。
+	コールバック内で MDX デコードを行うと、処理時間オーバーによりノイズが発生
+	することがある。
+	この問題を回避するため、MDX デコードスレッドを作成し、コールバックに先行
+	してデコードを完了させておき、コールバック内ではデコード結果を出力バッファ
+	にコピーするのみの短時間な処理を行うようにする。
+*/
+
+/* SDL AUDIO コールバック 1 回あたりの出力サンプル数 */
+#define NUM_SDL_AUDIO_CALLBACK_SAMPLES 512
+
+/* オーディオ出力ダブルバッファ */
+static int16_t s_audioDoubleBuffer[2][NUM_SDL_AUDIO_CALLBACK_SAMPLES * 2];
+
+/* オーディオ出力ダブルバッファの排他制御用セマフォ */
+static SDL_sem *s_audioReadableSem = NULL;
+static SDL_sem *s_audioWritableSem = NULL;
+
+/* SDL AUDIO コールバック処理 */
 static void sdlAudioCallback(
 	void	*userdata,
 	uint8_t	*stream,
 	int		len
 ){
-	MXDRV_GetPCM((MxdrvContext *)userdata, stream, len / (sizeof(uint16_t) * 2));
+	assert(len == NUM_SDL_AUDIO_CALLBACK_SAMPLES * sizeof(int16_t) * 2);
+	static int s_audioReadBufferIndex = 0;
+	SDL_SemWait(s_audioReadableSem);
+	memcpy(stream, &s_audioDoubleBuffer[s_audioReadBufferIndex][0], len);
+	s_audioReadBufferIndex ^= 1;
+	SDL_SemPost(s_audioWritableSem);
 }
 
+/* MDX デコードスレッド */
+static SDL_Thread *s_mdxDecodeThread = NULL;
+static int mdxDecodeThread(void *arg){
+	static int s_audioWriteBufferIndex = 0;
+	for (;;) {
+		SDL_SemWait(s_audioWritableSem);
+		MXDRV_GetPCM(
+			(MxdrvContext *)arg,
+			&s_audioDoubleBuffer[s_audioWriteBufferIndex][0],
+			NUM_SDL_AUDIO_CALLBACK_SAMPLES
+		);
+		s_audioWriteBufferIndex ^= 1;
+		SDL_SemPost(s_audioReadableSem);
+	}
+}
+
+/* MDX デコードスレッドの初期化と開始 */
+static void startMdxDecodeThread(MxdrvContext *context){
+	s_audioReadableSem = SDL_CreateSemaphore(0);
+	s_audioWritableSem = SDL_CreateSemaphore(2);
+	s_mdxDecodeThread = SDL_CreateThread(mdxDecodeThread, "mdxDecodeThread", context);
+}
+
+/* メイン */
 int main(
 	int		argc,
 	char	**argv
@@ -304,6 +354,9 @@ int main(
 		pdxBuffer, pdxBufferSizeInBytes
 	);
 
+	/* MDX デコードスレッドの初期化と開始 */
+	startMdxDecodeThread(&context);
+
 	/* SDL 初期化 */
 	if (SDL_Init(SDL_INIT_EVERYTHING) != 0) {
 		printf("SDL_Init(SDL_INIT_EVERYTHING) failed: %s", SDL_GetError());
@@ -336,7 +389,7 @@ int main(
 		fmt.freq		= SAMPLES_PER_SEC;
 		fmt.format		= AUDIO_S16SYS;
 		fmt.channels	= 2;
-		fmt.samples		= 1024;
+		fmt.samples		= NUM_SDL_AUDIO_CALLBACK_SAMPLES;
 		fmt.callback	= sdlAudioCallback;
 		fmt.userdata	= &context;
 		if (SDL_OpenAudio(&fmt, NULL) < 0) {
