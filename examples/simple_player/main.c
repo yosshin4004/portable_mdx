@@ -256,11 +256,43 @@ int main(
 #endif
 		printf("pdx filepath = %s\n", pdxFilePath);
 
+#ifdef _WIN32
 		pdxFileImage = mallocReadFile(pdxFilePath, &pdxFileImageSizeInBytes);
 		if (pdxFileImage == NULL) {
 			printf("mallocReadFile '%s' failed.\n", pdxFilePath);
 			exit(EXIT_FAILURE);
 		}
+#else
+		/* 大文字拡張子と小文字拡張子で読み込みをトライする */
+		for (int retryCount = 0; retryCount < 2; retryCount++) {
+			printf("Try to read '%s' ... ", pdxFilePath);
+			pdxFileImage = mallocReadFile(pdxFilePath, &pdxFileImageSizeInBytes);
+			if (pdxFileImage != NULL) {
+				printf("scceeded.\n");
+				break;
+			} else {
+				printf("failed.\n");
+				if (retryCount == 0) {
+					/* 末端拡張子の検索 */
+					char *p = pdxFilePath;
+					while (strchr(p, '.') != NULL) p = strchr(p, '.') + 1;
+
+					/* 末端拡張子以降を大文字小文字反転 */
+					while (*p != '\0') {
+						if ('a' <= *p && *p <= 'z') {
+							*p -= 0x20;
+						} else
+						if ('A' <= *p && *p <= 'Z') {
+							*p += 0x20;
+						}
+						p++;
+					}
+				} else {
+					exit(EXIT_FAILURE);
+				}
+			}
+		}
+#endif
 	}
 
 	/* MDX PDX バッファの要求サイズを求める */
