@@ -12,6 +12,7 @@
 #include <mxdrv_context.h>
 
 #ifdef _WIN32
+	#include <Windows.h>
 	#include <SDL.h>
 #else
 	#include <SDL2/SDL.h>
@@ -24,7 +25,14 @@ void *mallocReadFile(
 	uint32_t *sizeRet
 ){
 #ifdef _WIN32
-	FILE *fd; fopen_s(&fd, fileName, "rb");
+	int wcharFileNameSize = MultiByteToWideChar(CP_UTF8, 0, fileName, -1, NULL, 0);
+	wchar_t *wcharFileName = calloc(wcharFileNameSize, sizeof(wchar_t));
+	if (MultiByteToWideChar(CP_UTF8, 0, fileName, -1, wcharFileName, wcharFileNameSize) == 0) {
+		free(wcharFileName);
+		return NULL;
+	}
+	FILE *fd; _wfopen_s(&fd, wcharFileName, L"rb");
+	free(wcharFileName);
 #else
 	FILE *fd = fopen(fileName, "rb");
 #endif
