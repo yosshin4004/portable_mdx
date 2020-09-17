@@ -151,7 +151,7 @@ int main(
 	}
 	printf("mdx title = %s\n", mdxTitle);
 
-	/* PDX ファイルを要求するか */
+	/* PDX ファイルを要求するか？ */
 	bool hasPdx;
 	if (
 		MdxHasPdxFileName(

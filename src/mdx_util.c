@@ -420,11 +420,7 @@ bool MdxUtilCreateMdxPdxBuffer(
 
 		/* PDX ファイル名文字列以降に PDX ファイルイメージをコピー */
 		if (ofsDst + pdxFileImageSizeInBytes > pdxBufferSizeInBytes) return false;	/* バッファサイズ不足 */
-		memcpy(
-			dst + ofsDst
-		,	pdxFileImage
-		,	pdxFileImageSizeInBytes
-		);
+		memcpy(dst + ofsDst, pdxFileImage, pdxFileImageSizeInBytes);
 
 		/* PDX バッファ先頭 8 バイトにヘッダ情報作成 */
 		uint8PdxBuffer[0] = 0;
