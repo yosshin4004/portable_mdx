@@ -134,17 +134,63 @@ int main(
 	int		argc,
 	char	**argv
 ){
+	char *mdxFilePath = NULL;
+	char *wavFilePath = NULL;
+
 	/* 引数解析 */
 	if (argc == 1) {
 		printf(
 			"Simple mdx -> wav converter\n"
 			"usage:\n"
-			"	%s <mdxfilename>\n",
+			"	%s [options]\n"
+			"option:\n"
+			"	-i <mdxfilepath>:\n"
+			"		Specify a input mdx filepath.\n"
+			"	-o <wavfilepath>:\n"
+			"		Specify a output wav filepath.\n",
 			argv[0]
 		);
 		exit(EXIT_SUCCESS);
+	} else {
+		int i = 1;
+		while (i < argc) {
+			if (argv[i][0] == '-') {
+				if (strcmp(argv[i], "-i") == 0) {
+					i++;
+					if (i >= argc) {
+						printf("ERROR : No arg for '%s'.\n", argv[i - 1]);
+						return EXIT_FAILURE;
+					}
+					mdxFilePath = argv[i];
+				} else
+				if (strcmp(argv[i], "-o") == 0) {
+					i++;
+					if (i >= argc) {
+						printf("ERROR : No arg for '%s'.\n", argv[i - 1]);
+						return EXIT_FAILURE;
+					}
+					wavFilePath = argv[i];
+				} else {
+					printf("ERROR : Invalid arg '%s'.\n", argv[i]);
+					return EXIT_FAILURE;
+				}
+			} else {
+				printf("ERROR : Invalid arg '%s'.\n", argv[i]);
+				return EXIT_FAILURE;
+			}
+			i++;
+		}
 	}
-	char *mdxFilePath = argv[1];
+
+	/* 引数エラーチェック */
+	if (mdxFilePath == NULL) {
+		printf("ERROR : Please specify a input mdx filepath.\n");
+		exit(EXIT_FAILURE);
+	}
+	if (wavFilePath == NULL) {
+		printf("ERROR : Please specify a output wav filepath.\n");
+		exit(EXIT_FAILURE);
+	}
 
 	/* MDX ファイルの読み込み */
 	uint32_t mdxFileImageSizeInBytes = 0;
@@ -359,7 +405,7 @@ int main(
 	/* wav ファイルに保存 */
 	if (
 		serializeAsWav(
-			"out.wav",
+			wavFilePath,
 			wavBuffer,
 			numChannels,
 			numSamples,
