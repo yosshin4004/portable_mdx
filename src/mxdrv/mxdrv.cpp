@@ -1028,7 +1028,17 @@ static void ADPCMOUT(
 #endif
 ) {
 #if MXDRV_ENABLE_PORTABLE_CODE
-	_iocs_adpcmout( context, TO_PTR(A1), D1, D2 );
+	void *addr = TO_PTR(A1);
+	/*
+		ZEL2_.MDX にて、A1 が不正なポインタの状態でここが実行される。
+		対症療法で回避。
+	*/
+	if (&context->m_impl->m_memoryPool[0] <= addr
+	&&	addr < &context->m_impl->m_memoryPool[context->m_impl->m_memoryPoolSizeInBytes]) {
+		_iocs_adpcmout( context, TO_PTR(A1), D1, D2 );
+	} else {
+		printf("invalid A1 %08X\n", A1);
+	}
 	context->m_impl->m_logicalSumOfKeyOnFlagsForPcm[0] = true;
 #else
 	_iocs_adpcmout( (void *)A1, D1, D2 );

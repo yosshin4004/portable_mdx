@@ -17,7 +17,7 @@ uint8_t *MxdrvContextImpl_ReserveMemory(
 	uint32_t sizeInBytes
 ){
 	uint8_t *p = impl->m_memoryPoolReserved;
-	if (impl->m_memoryPoolReserved + sizeInBytes > &impl->m_memoryPool[impl->memoryPoolSizeInBytes]) {
+	if (impl->m_memoryPoolReserved + sizeInBytes > &impl->m_memoryPool[impl->m_memoryPoolSizeInBytes]) {
 		return NULL;
 	}
 	impl->m_memoryPoolReserved += sizeInBytes;
@@ -79,7 +79,7 @@ static bool MxdrvContextImpl_Initialize(
 	impl->m_OpmIntArg = NULL;
 	impl->m_mdxReservedMemoryPoolSize = 0;
 	impl->m_pdxReservedMemoryPoolSize = 0;
-	impl->memoryPoolSizeInBytes = allocSizeInBytes - sizeof(MxdrvContextImpl);
+	impl->m_memoryPoolSizeInBytes = allocSizeInBytes - sizeof(MxdrvContextImpl);
 	impl->m_memoryPoolReserved = NULL;
 	new(&impl->m_mtx) std::mutex();
 

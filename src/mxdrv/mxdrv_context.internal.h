@@ -88,7 +88,7 @@ typedef struct tagMxdrvContextImpl {
 		範囲に置く必要がある。以下のように要素数省略配列として保持する必要がある。
 		ポインタに置き換えてはいけない。
 	*/
-	uint32_t memoryPoolSizeInBytes;
+	uint32_t m_memoryPoolSizeInBytes;
 	uint8_t *m_memoryPoolReserved;
 	uint8_t m_memoryPool[1];		/* 要素数を省略したいが VC で警告されるので */
 	/*
