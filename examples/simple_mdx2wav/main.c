@@ -192,6 +192,15 @@ int main(
 		exit(EXIT_FAILURE);
 	}
 
+	/* MDX ファイルパスが "" で括られている場合の補正 */
+	size_t len = strlen(mdxFilePath);
+	if (len > 0) {
+		if (mdxFilePath[0] == '\"' && mdxFilePath[len - 1] == '\"') {
+			mdxFilePath[len - 1] = '\0';
+			mdxFilePath++;
+		}
+	}
+
 	/* MDX ファイルの読み込み */
 	uint32_t mdxFileImageSizeInBytes = 0;
 	void *mdxFileImage = mallocReadFile(mdxFilePath, &mdxFileImageSizeInBytes);

@@ -197,7 +197,23 @@ int main(
 		}
 	}
 
+	/* 引数エラーチェック */
+	if (mdxFilePath == NULL) {
+		printf("ERROR : Please specify a input mdx filepath.\n");
+		exit(EXIT_FAILURE);
+	}
+
+	/* MDX ファイルパスが "" で括られている場合の補正 */
+	size_t len = strlen(mdxFilePath);
+	if (len > 0) {
+		if (mdxFilePath[0] == '\"' && mdxFilePath[len - 1] == '\"') {
+			mdxFilePath[len - 1] = '\0';
+			mdxFilePath++;
+		}
+	}
+
 	/* MDX ファイルの読み込み */
+	printf("mdx filepath = %s\n", mdxFilePath);
 	uint32_t mdxFileImageSizeInBytes = 0;
 	void *mdxFileImage = mallocReadFile(mdxFilePath, &mdxFileImageSizeInBytes);
 	if (mdxFileImage == NULL) {
