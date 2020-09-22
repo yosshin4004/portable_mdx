@@ -6208,9 +6208,25 @@ L000ef4:;
 	D0 <<= 3;
 	A1 = G.L00222c;
 	A0 = A1+D0;
+#if MXDRV_ENABLE_PORTABLE_CODE
+	/*
+		COSMIC_.MDX にてシーケンスログに 0x80 が出現する。
+		このとき p->S0012 に 5 が格納され、ここで NULL ポインタアクセスになる。
+		対症療法で回避。
+	*/
+	if (A0 == 0) {
+		A0 += 8;
+		D3 = 0;
+	} else {
+		A1 += GETBLONG(A0); A0 += 4;
+		A0 += 2;
+		D3 = GETBWORD(A0); A0 += 2;
+	}
+#else
 	A1 += GETBLONG(A0); A0 += 4;
 	A0 += 2;
 	D3 = GETBWORD(A0); A0 += 2;
+#endif
 	if ( D3 == 0x0000 ) goto L000f26;
 #if MXDRV_ENABLE_PORTABLE_CODE
 	ADPCMMOD_END( context );
