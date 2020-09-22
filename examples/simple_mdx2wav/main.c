@@ -238,7 +238,7 @@ int main(
 	uint32_t pdxFileImageSizeInBytes = 0;
 	void *pdxFileImage = NULL;
 	if (hasPdx) {
-		char pdxFileName[FILENAME_MAX];
+		char pdxFileName[FILENAME_MAX] = {0};
 		if (
 			MdxGetPdxFileName(
 				mdxFileImage, mdxFileImageSizeInBytes,
@@ -250,50 +250,57 @@ int main(
 		}
 		printf("pdx filename = %s\n", pdxFileName);
 
-		char pdxFilePath[FILENAME_MAX];
 #ifdef _WIN32
 		char mdxDirName[FILENAME_MAX];
 		_splitpath_s(mdxFilePath, NULL, 0, mdxDirName, sizeof(mdxDirName), NULL, 0, NULL, 0);
-		sprintf_s(pdxFilePath, sizeof(pdxFilePath), "%s%s", mdxDirName, pdxFileName);
-#else
-		sprintf(pdxFilePath, "%s/%s", dirname(mdxFilePath), pdxFileName);
-#endif
-		printf("pdx filepath = %s\n", pdxFilePath);
 
-#ifdef _WIN32
+		char pdxFilePath[FILENAME_MAX];
+		sprintf_s(pdxFilePath, sizeof(pdxFilePath), "%s%s", mdxDirName, pdxFileName);
+		printf("read %s ... ", pdxFilePath);
 		pdxFileImage = mallocReadFile(pdxFilePath, &pdxFileImageSizeInBytes);
-		if (pdxFileImage == NULL) {
-			printf("mallocReadFile '%s' failed.\n", pdxFilePath);
-			exit(EXIT_FAILURE);
+		if (pdxFileImage != NULL) {
+			printf("scceeded.\n");
+		} else {
+			printf("failed.\n");
 		}
 #else
-		/* 大文字拡張子と小文字拡張子で読み込みをトライする */
-		for (int retryCount = 0; retryCount < 2; retryCount++) {
-			printf("Try to read '%s' ... ", pdxFilePath);
+		const char *mdxDirName = dirname(mdxFilePath);
+
+		/*
+			ファイル名の大文字小文字が区別される環境では
+				大文字ファイル名 + 大文字拡張子
+				大文字ファイル名 + 小文字拡張子
+				小文字ファイル名 + 大文字拡張子
+				小文字ファイル名 + 小文字拡張子
+			の 4 通りで PDX ファイル読み込みを試す必要がある。
+		*/
+		for (int retryCount = 0; retryCount < 4; retryCount++) {
+			char modifiedPdxFileName[FILENAME_MAX];
+			memcpy(modifiedPdxFileName, pdxFileName, FILENAME_MAX);
+			if (retryCount & 1) {
+				/* ファイル名部分の大文字小文字反転 */
+				for (char *p = modifiedPdxFileName; *p != '\0' && *p != '.'; p++) {
+					if ('a' <= *p && *p <= 'z' || 'A' <= *p && *p <= 'Z') *p ^= 0x20;
+				}
+			}
+			if (retryCount & 2) {
+				/* 拡張子部分の大文字小文字反転 */
+				char *p = modifiedPdxFileName;
+				while (strchr(p, '.') != NULL) p = strchr(p, '.') + 1;
+				for (; *p != '\0'; p++) {
+					if ('a' <= *p && *p <= 'z' || 'A' <= *p && *p <= 'Z') *p ^= 0x20;
+				}
+			}
+
+			char pdxFilePath[FILENAME_MAX];
+			sprintf(pdxFilePath, "%s/%s", mdxDirName, modifiedPdxFileName);
+			printf("read %s ... ", pdxFilePath);
 			pdxFileImage = mallocReadFile(pdxFilePath, &pdxFileImageSizeInBytes);
 			if (pdxFileImage != NULL) {
 				printf("scceeded.\n");
 				break;
 			} else {
 				printf("failed.\n");
-				if (retryCount == 0) {
-					/* 末端拡張子の検索 */
-					char *p = pdxFilePath;
-					while (strchr(p, '.') != NULL) p = strchr(p, '.') + 1;
-
-					/* 末端拡張子以降を大文字小文字反転 */
-					while (*p != '\0') {
-						if ('a' <= *p && *p <= 'z') {
-							*p -= 0x20;
-						} else
-						if ('A' <= *p && *p <= 'Z') {
-							*p += 0x20;
-						}
-						p++;
-					}
-				} else {
-					exit(EXIT_FAILURE);
-				}
 			}
 		}
 #endif
