@@ -1720,9 +1720,9 @@ L000134:;
 	G.L001e17 = CLR;
 	G.L001e13 = 0x01;
 #if MXDRV_ENABLE_PORTABLE_CODE
-	L_PAUSE_( context );  // L_PAUSE()のタイマーを止めない
+	L_PAUSE_( context );  /* L_PAUSE()のタイマーを止めない */
 #else
-	L_PAUSE_();  // L_PAUSE()のタイマーを止めない
+	L_PAUSE_();  /* L_PAUSE()のタイマーを止めない */
 #endif
 	if ( !PCM8 ) goto L000164;
 
@@ -4822,9 +4822,9 @@ L000a26:;
 	G.L001e17 = CLR;
 	G.L001e13 = 0x01;
 #if MXDRV_ENABLE_PORTABLE_CODE
-	L_PAUSE_( context );  // L_PAUSE()のタイマーを止めない
+	L_PAUSE_( context );  /* L_PAUSE()のタイマーを止めない */
 #else
-	L_PAUSE_();  // L_PAUSE()のタイマーを止めない
+	L_PAUSE_();  /* L_PAUSE()のタイマーを止めない */
 #endif
 	if ( !PCM8 ) goto L000a56;
 
@@ -5194,7 +5194,7 @@ L000bec:;
 														lea.l   CHBUF_FM(pc),a6
 														moveq.l #$00,d7
 */
-//	G.MUSICTIMER = D2; // ここは入れない
+//	G.MUSICTIMER = D2; /* ここは入れない */
 #if MXDRV_ENABLE_PORTABLE_CODE
 	L_WRITEOPM( context );
 #else
@@ -6219,7 +6219,7 @@ L000ef4:;
 #endif
 	D1 = D2;
 	D2 = D3;
-	if ( D2 > 0xff00 ) D2 = 0xff00;  // DMAサイズ制限
+	if ( D2 > 0xff00 ) D2 = 0xff00;  /* DMAサイズ制限 */
 #if MXDRV_ENABLE_PORTABLE_CODE
 	ADPCMOUT( context );
 	A2 = TO_OFS(&G.L00223c[0]);
@@ -7591,7 +7591,7 @@ L00122e:;
 
 /***************************************************************/
 
-#if 0 // 本体側へ移動
+#if 0 /* 本体側へ移動 */
 static void L001240(
 	void
 ) {
