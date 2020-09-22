@@ -370,7 +370,7 @@ int main(
 	/* コンテキストの初期化 */
 	#define MDX_BUFFER_SIZE		1 * 1024 * 1024
 	#define PDX_BUFFER_SIZE		2 * 1024 * 1024
-	#define MEMORY_POOL_SIZE	4 * 1024 * 1024
+	#define MEMORY_POOL_SIZE	8 * 1024 * 1024
 	MxdrvContext context;
 	if (MxdrvContext_Initialize(&context, MEMORY_POOL_SIZE) == false) {
 		printf("MxdrvContext_Initialize failed.\n");
