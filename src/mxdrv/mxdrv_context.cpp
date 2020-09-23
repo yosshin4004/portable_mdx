@@ -41,18 +41,6 @@ uint32_t MxdrvContextImpl_GetReservedMemoryPoolSize(
 	return (uint32_t)sizeInBytes;
 }
 
-void MxdrvContextImpl_EnterCriticalSection(
-	MxdrvContextImpl *impl
-){
-	impl->m_mtx.lock();
-}
-
-void MxdrvContextImpl_LeaveCriticalSection(
-	MxdrvContextImpl *impl
-){
-	impl->m_mtx.unlock();
-}
-
 static bool MxdrvContextImpl_Initialize(
 	MxdrvContextImpl *impl,
 	uint32_t allocSizeInBytes
@@ -140,6 +128,18 @@ bool MxdrvContext_GetPcmKeyOn(
 		context->m_impl->m_logicalSumOfKeyOnFlagsForPcm[channelIndex] = false;
 	}
 	return true;
+}
+
+void MxdrvContext_EnterCriticalSection(
+	MxdrvContext *context
+){
+	context->m_impl->m_mtx.lock();
+}
+
+void MxdrvContext_LeaveCriticalSection(
+	MxdrvContext *context
+){
+	context->m_impl->m_mtx.unlock();
 }
 
 bool MxdrvContext_Initialize(

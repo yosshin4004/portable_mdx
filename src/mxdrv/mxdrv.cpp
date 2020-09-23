@@ -1088,7 +1088,7 @@ static void CALLBACK OPMINTFUNC(
 #endif
 
 #if MXDRV_ENABLE_PORTABLE_CODE
-	MxdrvContextImpl_EnterCriticalSection( context->m_impl );
+	MxdrvContext_EnterCriticalSection( context );
 #else
 	EnterCriticalSection( &CS_OPMINT );
 #endif
@@ -1106,7 +1106,7 @@ static void CALLBACK OPMINTFUNC(
 	if ( MXCALLBACK_OPMINT ) MXCALLBACK_OPMINT();
 #endif
 #if MXDRV_ENABLE_PORTABLE_CODE
-	MxdrvContextImpl_LeaveCriticalSection( context->m_impl );
+	MxdrvContext_LeaveCriticalSection( context );
 #else
 	LeaveCriticalSection( &CS_OPMINT );
 #endif

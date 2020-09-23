@@ -115,13 +115,23 @@ uint32_t MxdrvContextImpl_GetReservedMemoryPoolSize(
 	MxdrvContextImpl *impl
 );
 
-void MxdrvContextImpl_EnterCriticalSection(
-	MxdrvContextImpl *impl
-);
+/* ポインタを 32 bit オフセットに変換 */
+static inline uint32_t MxdrvContext_ToOfs(
+	const MxdrvContext *context,
+	const volatile void *ptr
+){
+	uintptr_t ofs = (uintptr_t)ptr - (uintptr_t)context->m_impl;
+	assert(ofs < 0x100000000LL);
+	return (ptr ? (uint32_t)ofs : 0);
+}
 
-void MxdrvContextImpl_LeaveCriticalSection(
-	MxdrvContextImpl *impl
-);
+/* 32 bit オフセットをポインタに変換 */
+static inline uint8_t *MxdrvContext_ToPtr(
+	const MxdrvContext *context,
+	uint32_t ofs
+){
+	return (ofs ? ((uint8_t *)(((uintptr_t)context->m_impl) + (ofs))) : NULL);
+}
 
 #define TO_OFS( ptr ) MxdrvContext_ToOfs( context , ptr )
 #define TO_PTR( ofs ) MxdrvContext_ToPtr( context , ofs )

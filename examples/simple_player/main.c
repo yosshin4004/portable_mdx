@@ -92,10 +92,11 @@ static void sdlAudioCallback(
 }
 
 /* MDX デコードスレッド */
+static volatile bool s_continueMdxDecodeThread = false;
 static SDL_Thread *s_mdxDecodeThread = NULL;
 static int mdxDecodeThread(void *arg){
 	static int s_audioWriteBufferIndex = 0;
-	for (;;) {
+	while (s_continueMdxDecodeThread) {
 		SDL_SemWait(s_audioWritableSem);
 		MXDRV_GetPCM(
 			(MxdrvContext *)arg,
@@ -105,13 +106,23 @@ static int mdxDecodeThread(void *arg){
 		s_audioWriteBufferIndex ^= 1;
 		SDL_SemPost(s_audioReadableSem);
 	}
+	return 0;
 }
 
 /* MDX デコードスレッドの初期化と開始 */
 static void startMdxDecodeThread(MxdrvContext *context){
 	s_audioReadableSem = SDL_CreateSemaphore(0);
 	s_audioWritableSem = SDL_CreateSemaphore(2);
+	s_continueMdxDecodeThread = true;
 	s_mdxDecodeThread = SDL_CreateThread(mdxDecodeThread, "mdxDecodeThread", context);
+}
+
+/* MDX デコードスレッドの終了 */
+static void stopMdxDecodeThread(){
+	s_continueMdxDecodeThread = false;
+	SDL_SemPost(s_audioWritableSem);
+	SDL_WaitThread(s_mdxDecodeThread, NULL);
+	s_mdxDecodeThread = NULL;
 }
 
 /* メイン */
@@ -639,7 +650,9 @@ int main(
 				) {
 					if (enableFadeout) {
 						if (fadeouted == false) {
+							MxdrvContext_EnterCriticalSection(&context);
 							MXDRV_Fadeout(&context);
+							MxdrvContext_LeaveCriticalSection(&context);
 							printf("fadeout...\n");
 							fadeouted = true;
 						}
@@ -671,6 +684,7 @@ int main(
 	printf("done.\n");
 	if (window != NULL) SDL_DestroyWindow(window);
 	SDL_Quit();
+	stopMdxDecodeThread();
 	MXDRV_End(&context);
 	MxdrvContext_Terminate(&context);
 	if (pdxBuffer != NULL) free(pdxBuffer);
