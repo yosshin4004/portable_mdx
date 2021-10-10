@@ -32,7 +32,9 @@ bool MdxSeekFileImage(
 		if (ofsSrc >= mdxFileImageSizeInBytes) return false;	/* 不正なデータ */
 		c = src[ofsSrc++];
 		if (c == 0x0d /* CR */ || c == 0x0a /* LF */) break;
-		if (c < 0x20 && c != 0x1b) return false;				/* 不正なデータ */
+		if (c < 0x20 && c != 0x09 /* TAB */ && c != 0x1b /* ESC */) {
+			return false;										/* 不正なデータ */
+		}
 	}
 	if (ofsSrc >= mdxFileImageSizeInBytes) return false;		/* 不正なデータ */
 
@@ -121,7 +123,7 @@ bool MdxGetTitle(
 			*dst++ = '\0';
 			break;
 		}
-		if (c < 0x20 && c != 0x1b) {
+		if (c < 0x20 && c != 0x09 /* TAB */ && c != 0x1b /* ESC */) {
 			*dst++ = '\0';
 			return false;		/* 不正なデータ */
 		}
