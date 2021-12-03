@@ -389,11 +389,11 @@ int main(
 	}
 
 	/* MXDRV の初期化 */
-	#define SAMPLES_PER_SEC 48000
+	#define NUM_SAMPLES_PER_SEC 48000
 	{
 		int ret = MXDRV_Start(
 			&context,
-			SAMPLES_PER_SEC,
+			NUM_SAMPLES_PER_SEC,
 			0, 0, 0,
 			MDX_BUFFER_SIZE,
 			PDX_BUFFER_SIZE,
@@ -462,7 +462,7 @@ int main(
 	{
 		SDL_AudioSpec fmt;
 		memset(&fmt, 0, sizeof(fmt));
-		fmt.freq		= SAMPLES_PER_SEC;
+		fmt.freq		= NUM_SAMPLES_PER_SEC;
 		fmt.format		= AUDIO_S16SYS;
 		fmt.channels	= 2;
 		fmt.samples		= NUM_SDL_AUDIO_CALLBACK_SAMPLES;
@@ -499,7 +499,7 @@ int main(
 
 			/* OPM レジスタの可視化 */
 			{
-				static int levelMeters[256];
+				static int elapsedFrames[256] = {0};
 				#define NUM_PIXELS_PER_COLUMN	64
 				#define NUM_PIXELS_PER_ROW		8
 				#define NUM_PIXELS_PER_BIT		7
@@ -508,17 +508,19 @@ int main(
 					uint8_t regVal = 0;
 					bool updated = false;
 					MxdrvContext_GetOpmReg(&context, regIndex, &regVal, &updated);
+					if (updated) elapsedFrames[regIndex] = 0;
 					for (bit = 0; bit < 8; bit++) {
 						int x = (regIndex & 7) * NUM_PIXELS_PER_COLUMN + bit * NUM_PIXELS_PER_BIT;
 						int y = (regIndex / 8) * NUM_PIXELS_PER_ROW;
 						SDL_Rect rect = {x, y, NUM_PIXELS_PER_BIT - 1, NUM_PIXELS_PER_ROW - 1};
-						uint32_t color = 0x202020;
-						levelMeters[regIndex] = levelMeters[regIndex] * 15 / 16;
-						if (updated) levelMeters[regIndex] = 0x80;
-						if (regVal & (1 << bit)) color = 0x70607F;
-						color += levelMeters[regIndex] * 0x010101;
-						SDL_FillRect(surface, &rect, color);
+						int tmp = (regVal & (1 << bit))? 1: 0;
+						int attn = (elapsedFrames[regIndex] > 512)? 512: elapsedFrames[regIndex];
+						int r = tmp * 0x60 + (int)(0x80 / exp(attn /  64.f)) + 0x1F;
+						int g = tmp * 0x80 + (int)(0x60 / exp(attn /  16.f)) + 0x1F;
+						int b = tmp * 0x60 + (int)(0x80 / exp(attn / 256.f)) + 0x1F;
+						SDL_FillRect(surface, &rect, (r << 16) | (g << 8) | b);
 					}
+					elapsedFrames[regIndex]++;
 				}
 			}
 

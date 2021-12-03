@@ -366,11 +366,11 @@ int main(
 	}
 
 	/* MXDRV の初期化 */
-	#define SAMPLES_PER_SEC 48000
+	#define NUM_SAMPLES_PER_SEC 48000
 	{
 		int ret = MXDRV_Start(
 			&context,
-			SAMPLES_PER_SEC,
+			NUM_SAMPLES_PER_SEC,
 			0, 0, 0,
 			MDX_BUFFER_SIZE,
 			PDX_BUFFER_SIZE,
@@ -406,7 +406,7 @@ int main(
 	);
 
 	/* wav 保存バッファの確保 */
-	int numSamples = (int)(SAMPLES_PER_SEC * songDurationInSeconds);
+	int numSamples = (int)(NUM_SAMPLES_PER_SEC * songDurationInSeconds);
 	int numChannels = 2;
 	int wavBufferSizeInBytes = sizeof(int16_t) * numSamples * numChannels;
 	int16_t *wavBuffer = (int16_t *)malloc(wavBufferSizeInBytes);
@@ -425,7 +425,7 @@ int main(
 			wavBuffer,
 			numChannels,
 			numSamples,
-			SAMPLES_PER_SEC,
+			NUM_SAMPLES_PER_SEC,
 			1 /* WAVE_FORMAT_PCM */,
 			16
 		) == false
