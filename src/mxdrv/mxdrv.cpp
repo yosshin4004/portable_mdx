@@ -502,14 +502,17 @@ void MXDRV_End(
 		MxdrvContextImpl_ReleaseMemory(context->m_impl, context->m_impl->m_mdxReservedMemoryPoolSize);
 		context->m_impl->m_mdxReservedMemoryPoolSize = 0;
 	}
-	if ( G.L001e34) {
-		MxdrvContextImpl_ReleaseMemory(context->m_impl, G.L001ba8);
+	if ( G.L001bac) {
+		MxdrvContextImpl_ReleaseMemory(context->m_impl, G.L002220);
+		G.L001bac = NULL;
 	}
 	if ( G.L001e38) {
 		MxdrvContextImpl_ReleaseMemory(context->m_impl, G.L002224);
+		G.L001e38 = NULL;
 	}
-	if ( G.L001bac) {
-		MxdrvContextImpl_ReleaseMemory(context->m_impl, G.L002220);
+	if ( G.L001e34) {
+		MxdrvContextImpl_ReleaseMemory(context->m_impl, G.L001ba8);
+		G.L001e34 = NULL;
 	}
 	assert(MxdrvContextImpl_GetReservedMemoryPoolSize(context->m_impl) == 0);
 #else
@@ -633,9 +636,10 @@ void MXDRV_Play(
 	memcpy(mdxOnMemoryPool, mdx, mdxsize);
 	memcpy(pdxOnMemoryPool, pdx, pdxsize);
 #endif
-	X68REG reg;
 #if MXDRV_ENABLE_PORTABLE_CODE
-	memset(&reg, 0, sizeof(reg));
+	X68REG reg = {0};
+#else
+	X68REG reg;
 #endif
 
 	reg.d0 = 0x02;
@@ -764,10 +768,11 @@ DWORD MXDRV_MeasurePlayTime(
 	int fadeout
 #endif
 ) {
-	X68REG reg;
 #if MXDRV_ENABLE_PORTABLE_CODE
+	X68REG reg = {0};
 	void (*opmintback)( MxdrvContext *context );
 #else
+	X68REG reg;
 	void (CALLBACK *opmintback)(void);
 #endif
 
@@ -879,10 +884,11 @@ void MXDRV_PlayAt(
 	int fadeout
 
 ) {
-	X68REG reg;
 #if MXDRV_ENABLE_PORTABLE_CODE
+	X68REG reg = {0};
 	void (*opmintback)(MxdrvContext *context);
 #else
+	X68REG reg;
 	void (CALLBACK *opmintback)(void);
 #endif
 	UWORD chmaskback;
