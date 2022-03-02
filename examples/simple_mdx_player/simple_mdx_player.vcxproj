@@ -54,7 +54,7 @@
   <PropertyGroup Label="Globals">
     <ProjectGuid>{59334786-A7F4-45D4-B194-FA5C8ADDE341}</ProjectGuid>
     <Keyword>Win32Proj</Keyword>
-    <RootNamespace>simple_player</RootNamespace>
+    <RootNamespace>simple_mdx_player</RootNamespace>
     <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />

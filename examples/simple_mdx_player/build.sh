@@ -14,4 +14,4 @@ g++ -c -std=c++11 -I../../include ../../src/x68sound/x68sound_context.cpp -o obj
 gcc -c -I../../include ../../src/mdx_util.c -o objs/mdx_util.o
 gcc -c -I../../include main.c -o objs/main.o
 
-g++ objs/main.o objs/mxdrv.o objs/mxdrv_context.o objs/sound_iocs.o objs/x68sound_adpcm.o objs/x68sound_lfo.o objs/x68sound_op.o objs/x68sound_opm.o objs/x68sound_pcm8.o objs/x68sound.o objs/x68sound_context.o objs/mdx_util.o -lSDL2 -o simple_player && ./simple_player
+g++ objs/main.o objs/mxdrv.o objs/mxdrv_context.o objs/sound_iocs.o objs/x68sound_adpcm.o objs/x68sound_lfo.o objs/x68sound_op.o objs/x68sound_opm.o objs/x68sound_pcm8.o objs/x68sound.o objs/x68sound_context.o objs/mdx_util.o -lSDL2 -o simple_mdx_player
