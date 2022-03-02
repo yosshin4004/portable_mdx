@@ -51,6 +51,7 @@ void *mallocReadFile(
 	}
 	fread(buffer, 1, size, fd);
 	*sizeRet = size;
+	fclose(fd);
 	return buffer;
 }
 
