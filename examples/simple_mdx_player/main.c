@@ -19,6 +19,10 @@
 	#include <libgen.h>		/* for dirname() */
 #endif
 
+
+#define NUM_SAMPLES_PER_SEC 48000
+
+
 /* メモリ確保した領域にファイルを読み込む */
 void *mallocReadFile(
 	const char *fileName,
@@ -55,6 +59,7 @@ void *mallocReadFile(
 	}
 	fread(buffer, 1, size, fd);
 	*sizeRet = size;
+	fclose(fd);
 	return buffer;
 }
 
@@ -70,12 +75,17 @@ void *mallocReadFile(
 /* SDL AUDIO コールバック 1 回あたりの出力サンプル数 */
 #define NUM_SDL_AUDIO_CALLBACK_SAMPLES 512
 
-/* オーディオ出力ダブルバッファ */
-static int16_t s_audioDoubleBuffer[2][NUM_SDL_AUDIO_CALLBACK_SAMPLES * 2];
+/* オーディオ出力リングバッファ */
+#define NUM_SDL_AUDIO_CALLBACK_BUFFERS 2
+static int16_t s_audioRingBuffer[NUM_SDL_AUDIO_CALLBACK_BUFFERS][NUM_SDL_AUDIO_CALLBACK_SAMPLES * 2];
 
-/* オーディオ出力ダブルバッファの排他制御用セマフォ */
+/* オーディオ出力リングバッファの排他制御用セマフォ */
 static SDL_sem *s_audioReadableSem = NULL;
 static SDL_sem *s_audioWritableSem = NULL;
+
+/* オーディオ出力リングバッファの読み書き位置 */
+static int s_audioReadBufferIndex = 0;
+static int s_audioWriteBufferIndex = 0;
 
 /* SDL AUDIO コールバック処理 */
 static void sdlAudioCallback(
@@ -84,10 +94,9 @@ static void sdlAudioCallback(
 	int		len
 ){
 	assert(len == NUM_SDL_AUDIO_CALLBACK_SAMPLES * sizeof(int16_t) * 2);
-	static int s_audioReadBufferIndex = 0;
 	SDL_SemWait(s_audioReadableSem);
-	memcpy(stream, &s_audioDoubleBuffer[s_audioReadBufferIndex][0], len);
-	s_audioReadBufferIndex ^= 1;
+	memcpy(stream, &s_audioRingBuffer[s_audioReadBufferIndex & (NUM_SDL_AUDIO_CALLBACK_BUFFERS - 1)][0], len);
+	s_audioReadBufferIndex++;
 	SDL_SemPost(s_audioWritableSem);
 }
 
@@ -95,15 +104,14 @@ static void sdlAudioCallback(
 static volatile bool s_continueMdxDecodeThread = false;
 static SDL_Thread *s_mdxDecodeThread = NULL;
 static int mdxDecodeThread(void *arg){
-	static int s_audioWriteBufferIndex = 0;
 	while (s_continueMdxDecodeThread) {
 		SDL_SemWait(s_audioWritableSem);
 		MXDRV_GetPCM(
 			(MxdrvContext *)arg,
-			&s_audioDoubleBuffer[s_audioWriteBufferIndex][0],
+			&s_audioRingBuffer[s_audioWriteBufferIndex & (NUM_SDL_AUDIO_CALLBACK_BUFFERS - 1)][0],
 			NUM_SDL_AUDIO_CALLBACK_SAMPLES
 		);
-		s_audioWriteBufferIndex ^= 1;
+		s_audioWriteBufferIndex++;
 		SDL_SemPost(s_audioReadableSem);
 	}
 	return 0;
@@ -112,7 +120,9 @@ static int mdxDecodeThread(void *arg){
 /* MDX デコードスレッドの初期化と開始 */
 static void startMdxDecodeThread(MxdrvContext *context){
 	s_audioReadableSem = SDL_CreateSemaphore(0);
-	s_audioWritableSem = SDL_CreateSemaphore(2);
+	s_audioWritableSem = SDL_CreateSemaphore(NUM_SDL_AUDIO_CALLBACK_BUFFERS);
+	s_audioReadBufferIndex = 0;
+	s_audioWriteBufferIndex = 0;
 	s_continueMdxDecodeThread = true;
 	s_mdxDecodeThread = SDL_CreateThread(mdxDecodeThread, "mdxDecodeThread", context);
 }
@@ -123,7 +133,12 @@ static void stopMdxDecodeThread(){
 	SDL_SemPost(s_audioWritableSem);
 	SDL_WaitThread(s_mdxDecodeThread, NULL);
 	s_mdxDecodeThread = NULL;
+	SDL_DestroySemaphore(s_audioWritableSem);
+	s_audioWritableSem = NULL;
+	SDL_DestroySemaphore(s_audioReadableSem);
+	s_audioReadableSem = NULL;
 }
+
 
 /* メイン */
 int main(
@@ -214,265 +229,284 @@ int main(
 		exit(EXIT_FAILURE);
 	}
 
-	/* MDX ファイルパスが "" で括られている場合の補正 */
-	size_t len = strlen(mdxFilePath);
-	if (len > 0) {
-		if (mdxFilePath[0] == '\"' && mdxFilePath[len - 1] == '\"') {
-			mdxFilePath[len - 1] = '\0';
-			mdxFilePath++;
-		}
-	}
-
-	/* MDX ファイルの読み込み */
-	printf("mdx filepath = %s\n", mdxFilePath);
-	uint32_t mdxFileImageSizeInBytes = 0;
-	void *mdxFileImage = mallocReadFile(mdxFilePath, &mdxFileImageSizeInBytes);
-	if (mdxFileImage == NULL) {
-		printf("mallocReadFile '%s' failed.\n", mdxFilePath);
-		exit(EXIT_FAILURE);
-	}
-
-	/* MDX タイトルの取得 */
-	char mdxTitle[256];
-	if (
-		MdxGetTitle(
-			mdxFileImage, mdxFileImageSizeInBytes,
-			mdxTitle, sizeof(mdxTitle)
-		) == false
-	) {
-		printf("MdxGetTitle failed.\n");
-		exit(EXIT_FAILURE);
-	}
-	printf("mdx title = %s\n", mdxTitle);
-
-	/* PDX ファイルを要求するか？ */
-	bool hasPdx;
-	if (
-		MdxHasPdxFileName(
-			mdxFileImage, mdxFileImageSizeInBytes,
-			&hasPdx
-		) == false
-	) {
-		printf("MdxHasPdxFileName failed.\n");
-		exit(EXIT_FAILURE);
-	}
-
-	/* PDX ファイルの読み込み */
-	uint32_t pdxFileImageSizeInBytes = 0;
-	void *pdxFileImage = NULL;
-	if (hasPdx) {
-		char pdxFileName[FILENAME_MAX] = {0};
-		if (
-			MdxGetPdxFileName(
-				mdxFileImage, mdxFileImageSizeInBytes,
-				pdxFileName, sizeof(pdxFileName)
-			) == false
-		) {
-			printf("MdxGetPdxFileName failed.\n");
-			exit(EXIT_FAILURE);
-		}
-		printf("pdx filename = %s\n", pdxFileName);
-
-#ifdef _WIN32
-		char mdxDirName[FILENAME_MAX];
-		_splitpath_s(mdxFilePath, NULL, 0, mdxDirName, sizeof(mdxDirName), NULL, 0, NULL, 0);
-
-		char pdxFilePath[FILENAME_MAX];
-		sprintf_s(pdxFilePath, sizeof(pdxFilePath), "%s%s", mdxDirName, pdxFileName);
-		printf("read %s ... ", pdxFilePath);
-		pdxFileImage = mallocReadFile(pdxFilePath, &pdxFileImageSizeInBytes);
-		if (pdxFileImage != NULL) {
-			printf("scceeded.\n");
-		} else {
-			printf("failed.\n");
-		}
-#else
-		const char *mdxDirName = dirname(mdxFilePath);
-
-		/*
-			ファイル名の大文字小文字が区別される環境では
-				大文字ファイル名 + 大文字拡張子
-				大文字ファイル名 + 小文字拡張子
-				小文字ファイル名 + 大文字拡張子
-				小文字ファイル名 + 小文字拡張子
-			の 4 通りで PDX ファイル読み込みを試す必要がある。
-		*/
-		for (int retryCount = 0; retryCount < 4; retryCount++) {
-			char modifiedPdxFileName[FILENAME_MAX];
-			memcpy(modifiedPdxFileName, pdxFileName, FILENAME_MAX);
-			if (retryCount & 1) {
-				/* ファイル名部分の大文字小文字反転 */
-				for (char *p = modifiedPdxFileName; *p != '\0' && *p != '.'; p++) {
-					if ('a' <= *p && *p <= 'z' || 'A' <= *p && *p <= 'Z') *p ^= 0x20;
-				}
-			}
-			if (retryCount & 2) {
-				/* 拡張子部分の大文字小文字反転 */
-				char *p = modifiedPdxFileName;
-				while (strchr(p, '.') != NULL) p = strchr(p, '.') + 1;
-				for (; *p != '\0'; p++) {
-					if ('a' <= *p && *p <= 'z' || 'A' <= *p && *p <= 'Z') *p ^= 0x20;
-				}
-			}
-
-			char pdxFilePath[FILENAME_MAX];
-			sprintf(pdxFilePath, "%s/%s", mdxDirName, modifiedPdxFileName);
-			printf("read %s ... ", pdxFilePath);
-			pdxFileImage = mallocReadFile(pdxFilePath, &pdxFileImageSizeInBytes);
-			if (pdxFileImage != NULL) {
-				printf("scceeded.\n");
-				break;
-			} else {
-				printf("failed.\n");
-			}
-		}
-#endif
-	}
-
-	/* MDX PDX バッファの要求サイズを求める */
-	uint32_t mdxBufferSizeInBytes = 0;
-	uint32_t pdxBufferSizeInBytes = 0;
-	if (
-		MdxGetRequiredBufferSize(
-			mdxFileImage,
-			mdxFileImageSizeInBytes, pdxFileImageSizeInBytes,
-			&mdxBufferSizeInBytes, &pdxBufferSizeInBytes
-		) == false
-	) {
-		printf("MdxGetRequiredBufferSize failed.\n");
-		exit(EXIT_FAILURE);
-	}
-	printf("mdxBufferSizeInBytes = %d\n", mdxBufferSizeInBytes);
-	printf("pdxBufferSizeInBytes = %d\n", pdxBufferSizeInBytes);
-
-	/* MDX PDX バッファの確保 */
-	void *mdxBuffer = NULL;
-	mdxBuffer = (uint8_t *)malloc(mdxBufferSizeInBytes);
-	if (mdxBuffer == NULL) {
-		printf("malloc mdxBuffer failed.\n");
-		exit(EXIT_FAILURE);
-	}
-	void *pdxBuffer = NULL;
-	if (hasPdx) {
-		pdxBuffer = (uint8_t *)malloc(pdxBufferSizeInBytes);
-		if (pdxBuffer == NULL) {
-			printf("malloc pdxBuffer failed.\n");
-			exit(EXIT_FAILURE);
-		}
-	}
-
-	/* MDX PDX バッファを作成 */
-	if (
-		MdxUtilCreateMdxPdxBuffer(
-			mdxFileImage, mdxFileImageSizeInBytes,
-			pdxFileImage, pdxFileImageSizeInBytes,
-			mdxBuffer, mdxBufferSizeInBytes,
-			pdxBuffer, pdxBufferSizeInBytes
-		) == false
-	) {
-		printf("MdxUtilCreateMdxPdxBuffer failed.\n");
-		exit(EXIT_FAILURE);
-	}
-
-	/* この時点でファイルイメージは破棄してよい */
-	if (pdxFileImage != NULL) free(pdxFileImage);
-	free(mdxFileImage);
-
-	/* コンテキストの初期化 */
-	#define MDX_BUFFER_SIZE		1 * 1024 * 1024
-	#define PDX_BUFFER_SIZE		2 * 1024 * 1024
-	#define MEMORY_POOL_SIZE	8 * 1024 * 1024
+	/* MXDRV コンテキスト */
 	MxdrvContext context;
-	if (MxdrvContext_Initialize(&context, MEMORY_POOL_SIZE) == false) {
-		printf("MxdrvContext_Initialize failed.\n");
-		exit(EXIT_FAILURE);
-	}
 
-	/* MXDRV の初期化 */
-	#define NUM_SAMPLES_PER_SEC 48000
-	{
-		int ret = MXDRV_Start(
-			&context,
-			NUM_SAMPLES_PER_SEC,
-			0, 0, 0,
-			MDX_BUFFER_SIZE,
-			PDX_BUFFER_SIZE,
-			0
-		);
-		if (ret != 0) {
-			printf("MXDRV_Start failed. return code = %d\n", ret);
-			exit(EXIT_FAILURE);
-		}
-	}
-
-	/* PCM8 を有効化 */
-	uint8_t *pcm8EnableFlag = (uint8_t *)MXDRV_GetWork(&context, MXDRV_WORK_PCM8);
-	*(pcm8EnableFlag) = 1;
-
-	/* 音量設定 */
-	MXDRV_TotalVolume(&context, 256);
-
-	/* 再生時間を求める */
-	{
-		float songDurationInSeconds = MXDRV_MeasurePlayTime(
-			&context,
-			mdxBuffer, mdxBufferSizeInBytes,
-			pdxBuffer, pdxBufferSizeInBytes,
-			1, 0
-		) / 1000.0f;
-		printf("song duration %.1f(sec)\n", songDurationInSeconds);
-	}
-
-	/* MDX 再生 */
-	MXDRV_Play(
-		&context,
-		mdxBuffer, mdxBufferSizeInBytes,
-		pdxBuffer, pdxBufferSizeInBytes
-	);
-
-	/* MDX デコードスレッドの初期化と開始 */
-	startMdxDecodeThread(&context);
-
-	/* SDL 初期化 */
-	if (SDL_Init(SDL_INIT_EVERYTHING) != 0) {
-		printf("SDL_Init(SDL_INIT_EVERYTHING) failed: %s", SDL_GetError());
-		exit(EXIT_FAILURE);
-	}
-
-	/* メインウィンドウ作成 */
-	#define WINDOW_WIDTH	512
-	#define WINDOW_HEIGHT	512
+	/* SDL 関連初期化 */
 	SDL_Window *window = NULL;
 	SDL_Surface *surface = NULL;
-	if (enableVisualizer) {
-		window = SDL_CreateWindow(
-			"Simple mdx player",
-			SDL_WINDOWPOS_UNDEFINED,
-			SDL_WINDOWPOS_UNDEFINED,
-			WINDOW_WIDTH, WINDOW_HEIGHT,
-			SDL_WINDOW_FULLSCREEN_DESKTOP * 0);
-		if (window == NULL) {
-			printf("SDL_CreateWindow() failed: %s", SDL_GetError());
+	{
+		/* SDL 初期化 */
+		if (SDL_Init(SDL_INIT_EVERYTHING) != 0) {
+			printf("SDL_Init(SDL_INIT_EVERYTHING) failed: %s", SDL_GetError());
 			exit(EXIT_FAILURE);
 		}
-		surface = SDL_GetWindowSurface(window);
+
+		/* メインウィンドウ作成 */
+		#define WINDOW_WIDTH	512
+		#define WINDOW_HEIGHT	512
+		if (enableVisualizer) {
+			window = SDL_CreateWindow(
+				"Simple mdx player",
+				SDL_WINDOWPOS_UNDEFINED,
+				SDL_WINDOWPOS_UNDEFINED,
+				WINDOW_WIDTH, WINDOW_HEIGHT,
+				SDL_WINDOW_FULLSCREEN_DESKTOP * 0);
+			if (window == NULL) {
+				printf("SDL_CreateWindow() failed: %s", SDL_GetError());
+				exit(EXIT_FAILURE);
+			}
+			surface = SDL_GetWindowSurface(window);
+		}
+
+		/* SDL AUDIO 初期化 */
+		{
+			SDL_AudioSpec fmt;
+			memset(&fmt, 0, sizeof(fmt));
+			fmt.freq		= NUM_SAMPLES_PER_SEC;
+			fmt.format		= AUDIO_S16SYS;
+			fmt.channels	= 2;
+			fmt.samples		= NUM_SDL_AUDIO_CALLBACK_SAMPLES;
+			fmt.callback	= sdlAudioCallback;
+			fmt.userdata	= &context;
+			if (SDL_OpenAudio(&fmt, NULL) < 0) {
+				printf("SDL_OpenAudio() failed: %s", SDL_GetError());
+				exit(EXIT_FAILURE);
+			}
+		}
 	}
 
-	/* SDL AUDIO 初期化 */
+
+	/* MXDRV 初期化 */
+	void *mdxBuffer = NULL;
+	void *pdxBuffer = NULL;
 	{
-		SDL_AudioSpec fmt;
-		memset(&fmt, 0, sizeof(fmt));
-		fmt.freq		= NUM_SAMPLES_PER_SEC;
-		fmt.format		= AUDIO_S16SYS;
-		fmt.channels	= 2;
-		fmt.samples		= NUM_SDL_AUDIO_CALLBACK_SAMPLES;
-		fmt.callback	= sdlAudioCallback;
-		fmt.userdata	= &context;
-		if (SDL_OpenAudio(&fmt, NULL) < 0) {
-			printf("SDL_OpenAudio() failed: %s", SDL_GetError());
+		uint32_t mdxBufferSizeInBytes = 0;
+		uint32_t pdxBufferSizeInBytes = 0;
+
+		/* MDX PDX 見込みと、MDX PDX バッファの作成 */
+		{
+			/* MDX ファイルパスが "" で括られている場合の補正 */
+			size_t len = strlen(mdxFilePath);
+			if (len > 0) {
+				if (mdxFilePath[0] == '\"' && mdxFilePath[len - 1] == '\"') {
+					mdxFilePath[len - 1] = '\0';
+					mdxFilePath++;
+				}
+			}
+
+			/* MDX ファイルの読み込み */
+			printf("mdx filepath = %s\n", mdxFilePath);
+			uint32_t mdxFileImageSizeInBytes = 0;
+			void *mdxFileImage = mallocReadFile(mdxFilePath, &mdxFileImageSizeInBytes);
+			if (mdxFileImage == NULL) {
+				printf("mallocReadFile '%s' failed.\n", mdxFilePath);
+				exit(EXIT_FAILURE);
+			}
+
+			/* MDX タイトルの取得 */
+			char mdxTitle[256];
+			if (
+				MdxGetTitle(
+					mdxFileImage, mdxFileImageSizeInBytes,
+					mdxTitle, sizeof(mdxTitle)
+				) == false
+			) {
+				printf("MdxGetTitle failed.\n");
+				exit(EXIT_FAILURE);
+			}
+			printf("mdx title = %s\n", mdxTitle);
+
+			/* PDX ファイルを要求するか？ */
+			bool hasPdx;
+			if (
+				MdxHasPdxFileName(
+					mdxFileImage, mdxFileImageSizeInBytes,
+					&hasPdx
+				) == false
+			) {
+				printf("MdxHasPdxFileName failed.\n");
+				exit(EXIT_FAILURE);
+			}
+
+			/* PDX ファイルの読み込み */
+			uint32_t pdxFileImageSizeInBytes = 0;
+			void *pdxFileImage = NULL;
+			if (hasPdx) {
+				char pdxFileName[FILENAME_MAX] = {0};
+				if (
+					MdxGetPdxFileName(
+						mdxFileImage, mdxFileImageSizeInBytes,
+						pdxFileName, sizeof(pdxFileName)
+					) == false
+				) {
+					printf("MdxGetPdxFileName failed.\n");
+					exit(EXIT_FAILURE);
+				}
+				printf("pdx filename = %s\n", pdxFileName);
+
+		#ifdef _WIN32
+				char mdxDirName[FILENAME_MAX];
+				_splitpath_s(mdxFilePath, NULL, 0, mdxDirName, sizeof(mdxDirName), NULL, 0, NULL, 0);
+
+				char pdxFilePath[FILENAME_MAX];
+				sprintf_s(pdxFilePath, sizeof(pdxFilePath), "%s%s", mdxDirName, pdxFileName);
+				printf("read %s ... ", pdxFilePath);
+				pdxFileImage = mallocReadFile(pdxFilePath, &pdxFileImageSizeInBytes);
+				if (pdxFileImage != NULL) {
+					printf("scceeded.\n");
+				} else {
+					printf("failed.\n");
+				}
+		#else
+				char mdxFilePathTmp[FILENAME_MAX] = {0};
+				strncpy(mdxFilePathTmp, mdxFilePath, sizeof(mdxFilePathTmp));
+				mdxFilePathTmp[FILENAME_MAX-1] = '\0';
+				const char *mdxDirName = dirname(mdxFilePathTmp);
+
+				/*
+					ファイル名の大文字小文字が区別される環境では
+						大文字ファイル名 + 大文字拡張子
+						大文字ファイル名 + 小文字拡張子
+						小文字ファイル名 + 大文字拡張子
+						小文字ファイル名 + 小文字拡張子
+					の 4 通りで PDX ファイル読み込みを試す必要がある。
+				*/
+				for (int retryCount = 0; retryCount < 4; retryCount++) {
+					char modifiedPdxFileName[FILENAME_MAX];
+					memcpy(modifiedPdxFileName, pdxFileName, FILENAME_MAX);
+					if (retryCount & 1) {
+						/* ファイル名部分の大文字小文字反転 */
+						for (char *p = modifiedPdxFileName; *p != '\0' && *p != '.'; p++) {
+							if ('a' <= *p && *p <= 'z' || 'A' <= *p && *p <= 'Z') *p ^= 0x20;
+						}
+					}
+					if (retryCount & 2) {
+						/* 拡張子部分の大文字小文字反転 */
+						char *p = modifiedPdxFileName;
+						while (strchr(p, '.') != NULL) p = strchr(p, '.') + 1;
+						for (; *p != '\0'; p++) {
+							if ('a' <= *p && *p <= 'z' || 'A' <= *p && *p <= 'Z') *p ^= 0x20;
+						}
+					}
+
+					char pdxFilePath[FILENAME_MAX];
+					sprintf(pdxFilePath, "%s/%s", mdxDirName, modifiedPdxFileName);
+					printf("read %s ... ", pdxFilePath);
+					pdxFileImage = mallocReadFile(pdxFilePath, &pdxFileImageSizeInBytes);
+					if (pdxFileImage != NULL) {
+						printf("scceeded.\n");
+						break;
+					} else {
+						printf("failed.\n");
+					}
+				}
+		#endif
+			}
+
+			/* MDX PDX バッファの要求サイズを求める */
+			if (
+				MdxGetRequiredBufferSize(
+					mdxFileImage,
+					mdxFileImageSizeInBytes, pdxFileImageSizeInBytes,
+					&mdxBufferSizeInBytes, &pdxBufferSizeInBytes
+				) == false
+			) {
+				printf("MdxGetRequiredBufferSize failed.\n");
+				exit(EXIT_FAILURE);
+			}
+			printf("mdxBufferSizeInBytes = %d\n", mdxBufferSizeInBytes);
+			printf("pdxBufferSizeInBytes = %d\n", pdxBufferSizeInBytes);
+
+			/* MDX PDX バッファの確保 */
+			if (mdxBuffer != NULL) free(mdxBuffer);
+			mdxBuffer = (uint8_t *)malloc(mdxBufferSizeInBytes);
+			if (mdxBuffer == NULL) {
+				printf("malloc mdxBuffer failed.\n");
+				exit(EXIT_FAILURE);
+			}
+			if (hasPdx) {
+				if (pdxBuffer != NULL) free(pdxBuffer);
+				pdxBuffer = (uint8_t *)malloc(pdxBufferSizeInBytes);
+				if (pdxBuffer == NULL) {
+					printf("malloc pdxBuffer failed.\n");
+					exit(EXIT_FAILURE);
+				}
+			}
+
+			/* MDX PDX バッファを作成 */
+			if (
+				MdxUtilCreateMdxPdxBuffer(
+					mdxFileImage, mdxFileImageSizeInBytes,
+					pdxFileImage, pdxFileImageSizeInBytes,
+					mdxBuffer, mdxBufferSizeInBytes,
+					pdxBuffer, pdxBufferSizeInBytes
+				) == false
+			) {
+				printf("MdxUtilCreateMdxPdxBuffer failed.\n");
+				exit(EXIT_FAILURE);
+			}
+
+			/* この時点でファイルイメージは破棄してよい */
+			if (pdxFileImage != NULL) free(pdxFileImage);
+			free(mdxFileImage);
+		}
+
+		/* コンテキストの初期化 */
+		#define MDX_BUFFER_SIZE		1 * 1024 * 1024
+		#define PDX_BUFFER_SIZE		2 * 1024 * 1024
+		#define MEMORY_POOL_SIZE	8 * 1024 * 1024
+		if (MxdrvContext_Initialize(&context, MEMORY_POOL_SIZE) == false) {
+			printf("MxdrvContext_Initialize failed.\n");
 			exit(EXIT_FAILURE);
 		}
-		SDL_PauseAudio(0);
+
+		/* MXDRV の初期化 */
+		{
+			int ret = MXDRV_Start(
+				&context,
+				NUM_SAMPLES_PER_SEC,
+				0, 0, 0,
+				MDX_BUFFER_SIZE,
+				PDX_BUFFER_SIZE,
+				0
+			);
+			if (ret != 0) {
+				printf("MXDRV_Start failed. return code = %d\n", ret);
+				exit(EXIT_FAILURE);
+			}
+		}
+
+		/* PCM8 を有効化 */
+		uint8_t *pcm8EnableFlag = (uint8_t *)MXDRV_GetWork(&context, MXDRV_WORK_PCM8);
+		*(pcm8EnableFlag) = 1;
+
+		/* 音量設定 */
+		MXDRV_TotalVolume(&context, 256);
+
+		/* 再生時間を求める */
+		{
+			float songDurationInSeconds = MXDRV_MeasurePlayTime(
+				&context,
+				mdxBuffer, mdxBufferSizeInBytes,
+				pdxBuffer, pdxBufferSizeInBytes,
+				1, 0
+			) / 1000.0f;
+			printf("song duration %.1f(sec)\n", songDurationInSeconds);
+		}
+
+		/* MDX 再生 */
+		MXDRV_Play(
+			&context,
+			mdxBuffer, mdxBufferSizeInBytes,
+			pdxBuffer, pdxBufferSizeInBytes
+		);
+
+		/* MDX デコードスレッドの初期化と開始 */
+		startMdxDecodeThread(&context);
+
+		/* SDL AUDIO 再生 */
+		SDL_PauseAudio(0); 
 	}
 
 	/* メッセージループ */
@@ -682,16 +716,28 @@ int main(
 		}
 	}
 
-	/* 終了処理 */
-	printf("done.\n");
+	/* 再生終了処理 */
+	{
+		/* SDL AUDIO 停止 */
+		SDL_PauseAudio(1); 
+
+		/* MDX デコードスレッドの停止 */
+		stopMdxDecodeThread();
+
+		/* MXDRV 終了処理 */
+		MXDRV_End(&context);
+		MxdrvContext_Terminate(&context);
+		if (pdxBuffer != NULL) free(pdxBuffer);
+		free(mdxBuffer);
+	}
+
+	/* SDL 終了処理 */
+	SDL_CloseAudio();
 	if (window != NULL) SDL_DestroyWindow(window);
 	SDL_Quit();
-	stopMdxDecodeThread();
-	MXDRV_End(&context);
-	MxdrvContext_Terminate(&context);
-	if (pdxBuffer != NULL) free(pdxBuffer);
-	free(mdxBuffer);
 
+	/* 正常終了 */
 	exit(EXIT_SUCCESS);
 }
+
 
