@@ -504,29 +504,29 @@ void MXDRV_End(
 	}
 	if ( G.L001bac) {
 		MxdrvContextImpl_ReleaseMemory(context->m_impl, G.L002220);
-		G.L001bac = NULL;
+		G.L001bac = (uint32_t)NULL;
 	}
 	if ( G.L001e38) {
 		MxdrvContextImpl_ReleaseMemory(context->m_impl, G.L002224);
-		G.L001e38 = NULL;
+		G.L001e38 = (uint32_t)NULL;
 	}
 	if ( G.L001e34) {
 		MxdrvContextImpl_ReleaseMemory(context->m_impl, G.L001ba8);
-		G.L001e34 = NULL;
+		G.L001e34 = (uint32_t)NULL;
 	}
 	assert(MxdrvContextImpl_GetReservedMemoryPoolSize(context->m_impl) == 0);
 #else
 	if ( G.L001e34 ) {
 		free( (void*)G.L001e34 );
-		G.L001e34 = NULL;
+		G.L001e34 = (uint32_t)NULL;
 	}
 	if ( G.L001e38 ) {
 		free( (void*)G.L001e38 );
-		G.L001e38 = NULL;
+		G.L001e38 = (uint32_t)NULL;
 	}
 	if ( G.L001bac ) {
 		free( (void*)G.L001bac );
-		G.L001bac = NULL;
+		G.L001bac = (uint32_t)NULL;
 	}
 #endif
 
