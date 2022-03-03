@@ -235,14 +235,14 @@ bool MdxGetPdxFileName(
 		}
 	}
 	if (hasExt == false) {
-		const uint8_t *ext = ".PDX";
+		const char *ext = ".PDX";
 		dst--;
 		for (;;) {
 			if (dst == dstEnd - 1) {
 				*dst++ = '\0';
 				return false;		/* バッファ容量不足 */
 			}
-			uint8_t c = *ext++;
+			char c = *ext++;
 			if (c == '\0') {
 				*dst++ = '\0';
 				break;
