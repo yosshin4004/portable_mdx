@@ -503,7 +503,7 @@ void MXDRV_End(
 		context->m_impl->m_mdxReservedMemoryPoolSize = 0;
 	}
 	if ( G.L001bac) {
-		MxdrvContextImpl_ReleaseMemory(context->m_impl, G.L002220);
+		MxdrvContextImpl_ReleaseMemory(context->m_impl, G.L001ba8);
 		G.L001bac = (uint32_t)NULL;
 	}
 	if ( G.L001e38) {
@@ -511,7 +511,7 @@ void MXDRV_End(
 		G.L001e38 = (uint32_t)NULL;
 	}
 	if ( G.L001e34) {
-		MxdrvContextImpl_ReleaseMemory(context->m_impl, G.L001ba8);
+		MxdrvContextImpl_ReleaseMemory(context->m_impl, G.L002220);
 		G.L001e34 = (uint32_t)NULL;
 	}
 	assert(MxdrvContextImpl_GetReservedMemoryPoolSize(context->m_impl) == 0);
