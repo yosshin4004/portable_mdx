@@ -8015,11 +8015,11 @@ static void L001330(
 	{
 		volatile MXWORK_CH *p = (MXWORK_CH *)TO_PTR(A6);
 		p->S0022--;
-		p->S0017 |= 0x17;
+		p->S0017 |= 0x01;
 	}
 #else
 	A6->S0022--;
-	A6->S0017 |= 0x17;
+	A6->S0017 |= 0x01;
 #endif
 
 //L00133a:;
