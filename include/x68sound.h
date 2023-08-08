@@ -54,6 +54,7 @@ int X68Sound_Pcm8_GetMode(struct tagX68SoundContext *context, int ch);
 int X68Sound_Pcm8_Abort(struct tagX68SoundContext *context);
 
 int X68Sound_TotalVolume(struct tagX68SoundContext *context, int v);
+int X68Sound_GetTotalVolume(struct tagX68SoundContext *context);
 
 int X68Sound_ErrorCode(struct tagX68SoundContext *context);
 int X68Sound_DebugValue(struct tagX68SoundContext *context);

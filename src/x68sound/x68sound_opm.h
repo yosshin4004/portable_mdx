@@ -225,6 +225,7 @@ public:
 	int Pcm8_Abort();
 
 	int SetTotalVolume(int v);
+	int GetTotalVolume(void);
 
 	void PushRegs();
 	void PopRegs();

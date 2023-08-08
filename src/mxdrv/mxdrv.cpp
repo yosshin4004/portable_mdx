@@ -36,6 +36,7 @@
 	#include <string.h>		/* for memset */
 	#include <mxdrv.h>
 	#include <x68sound.h>
+	#include <mxdrv_context.h>
 	#include "mxdrv_context.internal.h"
 	#include "sound_iocs.h"
 	#include <stdio.h>
@@ -597,7 +598,53 @@ int MXDRV_TotalVolume(
 #endif
 }
 
-void MXDRV_Play(
+int MXDRV_GetTotalVolume(
+#if MXDRV_ENABLE_PORTABLE_CODE
+	MxdrvContext *context
+#endif
+) {
+#if MXDRV_ENABLE_PORTABLE_CODE
+	return ( X68Sound_GetTotalVolume( &context->m_impl->m_x68SoundContext) );
+#else
+	return ( X68Sound_GetTotalVolume() );
+#endif
+}
+
+void MXDRV_ChannelMask(
+#if MXDRV_ENABLE_PORTABLE_CODE
+	MxdrvContext *context,
+#endif
+	int mask
+) {
+	G.L001e1c = mask;
+}
+
+int MXDRV_GetChannelMask(
+#if MXDRV_ENABLE_PORTABLE_CODE
+	MxdrvContext *context
+#endif
+) {
+	return G.L001e1c;
+}
+
+void MXDRV_PCM8Enable(
+#if MXDRV_ENABLE_PORTABLE_CODE
+	MxdrvContext *context,
+#endif
+	int sw
+) {
+	PCM8 = (sw != 0) ? 1 : 0;
+}
+
+int MXDRV_GetPCM8Enable(
+#if MXDRV_ENABLE_PORTABLE_CODE
+	MxdrvContext *context
+#endif
+) {
+	return PCM8;
+}
+
+void MXDRV_SetData2(
 #if MXDRV_ENABLE_PORTABLE_CODE
 	MxdrvContext *context,
 	void *mdx,
@@ -665,6 +712,47 @@ void MXDRV_Play(
 	} else {
 		G.L002231 = CLR;
 	}
+}
+
+void MXDRV_Play(
+#if MXDRV_ENABLE_PORTABLE_CODE
+	MxdrvContext *context,
+	void *mdx,
+	uint32_t mdxsize,
+	void *pdx,
+	uint32_t pdxsize
+#else
+	void *mdx,
+	DWORD mdxsize,
+	void *pdx,
+	DWORD pdxsize
+#endif
+) {
+	MXDRV_SetData2(
+#if MXDRV_ENABLE_PORTABLE_CODE
+		context,
+#endif
+		mdx, mdxsize, pdx, pdxsize
+	);
+
+	MXDRV_Play2(
+#if MXDRV_ENABLE_PORTABLE_CODE
+		context
+#endif
+	);
+}
+
+void MXDRV_Play2(
+#if MXDRV_ENABLE_PORTABLE_CODE
+	MxdrvContext *context
+#else
+#endif
+) {
+#if MXDRV_ENABLE_PORTABLE_CODE
+	X68REG reg = {0};
+#else
+	X68REG reg;
+#endif
 
 	reg.d0 = 0x0f;
 	reg.d1 = 0x00;
@@ -749,24 +837,12 @@ static void CALLBACK MXDRV_MeasurePlayTime_OPMINT(
 	}
 }
 
+uint32_t MXDRV_MeasurePlayTime2(
 #if MXDRV_ENABLE_PORTABLE_CODE
-uint32_t MXDRV_MeasurePlayTime(
 	MxdrvContext *context,
-	void *mdx,
-	uint32_t mdxsize,
-	void *pdx,
-	uint32_t pdxsize,
-	int loop,
-	int fadeout
-#else
-DWORD MXDRV_MeasurePlayTime(
-	void *mdx,
-	DWORD mdxsize,
-	void *pdx,
-	DWORD pdxsize,
-	int loop,
-	int fadeout
 #endif
+	int loop,
+	int fadeout
 ) {
 #if MXDRV_ENABLE_PORTABLE_CODE
 	X68REG reg = {0};
@@ -791,56 +867,6 @@ DWORD MXDRV_MeasurePlayTime(
 
 	opmintback = MXCALLBACK_OPMINT;
 	MXCALLBACK_OPMINT = MXDRV_MeasurePlayTime_OPMINT;
-
-#if MXDRV_ENABLE_PORTABLE_CODE
-	/*
-		32bit の相対アドレスで届く範囲のメモリ領域に mdx pdx を配置する必要が
-		あるため、MxdrvContextImpl のメモリプールから確保した領域を利用する。
-	*/
-	if (context->m_impl->m_pdxReservedMemoryPoolSize != 0) {
-		MxdrvContextImpl_ReleaseMemory(context->m_impl, context->m_impl->m_pdxReservedMemoryPoolSize);
-		context->m_impl->m_pdxReservedMemoryPoolSize = 0;
-	}
-	if (context->m_impl->m_mdxReservedMemoryPoolSize != 0) {
-		MxdrvContextImpl_ReleaseMemory(context->m_impl, context->m_impl->m_mdxReservedMemoryPoolSize);
-		context->m_impl->m_mdxReservedMemoryPoolSize = 0;
-	}
-
-	void *mdxOnMemoryPool = MxdrvContextImpl_ReserveMemory(context->m_impl, mdxsize);
-	if (mdxOnMemoryPool == NULL) return 0;
-	context->m_impl->m_mdxReservedMemoryPoolSize = mdxsize;
-
-	void *pdxOnMemoryPool = MxdrvContextImpl_ReserveMemory(context->m_impl, pdxsize);
-	if (pdxOnMemoryPool == NULL) return 0;
-	context->m_impl->m_pdxReservedMemoryPoolSize = pdxsize;
-
-	memcpy(mdxOnMemoryPool, mdx, mdxsize);
-	memcpy(pdxOnMemoryPool, pdx, pdxsize);
-#endif
-
-	reg.d0 = 0x02;
-	reg.d1 = mdxsize;
-#if MXDRV_ENABLE_PORTABLE_CODE
-	reg.a1 = TO_OFS(mdxOnMemoryPool);
-	MXDRV( context, &reg );
-#else
-	reg.a1 = (UBYTE *)mdx;
-	MXDRV( &reg );
-#endif
-
-	if ( pdx ) {
-		reg.d0 = 0x03;
-		reg.d1 = pdxsize;
-#if MXDRV_ENABLE_PORTABLE_CODE
-		reg.a1 = TO_OFS(pdxOnMemoryPool);
-		MXDRV( context, &reg );
-#else
-		reg.a1 = (UBYTE *)pdx;
-		MXDRV( &reg );
-#endif
-	} else {
-		G.L002231 = CLR;
-	}
 
 	reg.d0 = 0x0f;
 	reg.d1 = -1;
@@ -869,6 +895,40 @@ DWORD MXDRV_MeasurePlayTime(
 #endif
 
 	return ( (DWORD)(G.PLAYTIME*(LONGLONG)1024/4000+(1-DBL_EPSILON))+2000 );
+}
+
+#if MXDRV_ENABLE_PORTABLE_CODE
+uint32_t MXDRV_MeasurePlayTime(
+	MxdrvContext *context,
+	void *mdx,
+	uint32_t mdxsize,
+	void *pdx,
+	uint32_t pdxsize,
+	int loop,
+	int fadeout
+#else
+DWORD MXDRV_MeasurePlayTime(
+	void *mdx,
+	DWORD mdxsize,
+	void *pdx,
+	DWORD pdxsize,
+	int loop,
+	int fadeout
+#endif
+) {
+	MXDRV_SetData2(
+#if MXDRV_ENABLE_PORTABLE_CODE
+		context,
+#endif
+		mdx, mdxsize, pdx, pdxsize
+	);
+
+	return MXDRV_MeasurePlayTime2(
+#if MXDRV_ENABLE_PORTABLE_CODE
+		context,
+#endif
+		loop, fadeout
+	);
 }
 
 /***************************************************************/
@@ -948,6 +1008,40 @@ void MXDRV_PlayAt(
 #else
 	X68Sound_OpmInt( &OPMINTFUNC );
 #endif
+}
+
+/***************************************************************/
+
+uint32_t MXDRV_GetPlayAt(
+#if MXDRV_ENABLE_PORTABLE_CODE
+	MxdrvContext *context
+#else
+	void
+#endif
+) {
+	return (ULONG)(G.PLAYTIME*(LONGLONG)1024/4000);
+}
+
+/***************************************************************/
+
+int MXDRV_GetTerminated(
+#if MXDRV_ENABLE_PORTABLE_CODE
+	MxdrvContext *context
+#else
+	void
+#endif
+) {
+	
+	if ( G.PLAYTIME >= G.MEASURETIMELIMIT ) {
+		return (1);
+	}
+	if ( G.L001e13 != 0 ) {
+		return (1);
+	}
+	if ( G.L002246 == 65535 ) {
+		return (1);
+	}
+	return 0;
 }
 
 /***************************************************************/

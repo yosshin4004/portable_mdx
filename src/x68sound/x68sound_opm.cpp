@@ -2065,6 +2065,10 @@ int Opm::SetTotalVolume(int v) {
 	return TotalVolume;
 }
 
+int Opm::GetTotalVolume(void) {
+	return TotalVolume;
+}
+
 #if X68SOUND_ENABLE_PORTABLE_CODE
 void Opm::BetwInt(void (*proc)(void *), void *arg) {
 	BetwIntProc = proc;
