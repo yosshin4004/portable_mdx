@@ -2,6 +2,7 @@
 #define __X68SOUND_OPM_H__
 
 #include "x68sound_config.h"
+#include <mutex>
 
 #if X68SOUND_ENABLE_PORTABLE_CODE
 	#include "x68sound_global.h"
@@ -140,6 +141,8 @@ private:
 
 	int Dousa_mode;		// 0:非動作 1:X68Sound_Start中  2:X68Sound_PcmStart中
 
+	/* CmndBufアクセスロック用 */
+	std::mutex m_mtxCmnd;
 
 //public:
 	Adpcm	adpcm;
