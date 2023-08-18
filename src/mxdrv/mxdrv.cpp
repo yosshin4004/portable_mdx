@@ -644,7 +644,7 @@ int MXDRV_GetPCM8Enable(
 	return PCM8;
 }
 
-void MXDRV_SetData2(
+int MXDRV_SetData2(
 #if MXDRV_ENABLE_PORTABLE_CODE
 	MxdrvContext *context,
 	void *mdx,
@@ -673,11 +673,11 @@ void MXDRV_SetData2(
 	}
 
 	void *mdxOnMemoryPool = MxdrvContextImpl_ReserveMemory(context->m_impl, mdxsize);
-	if (mdxOnMemoryPool == NULL) return;
+	if (mdxOnMemoryPool == NULL) return MXDRV_ERR_MEMORY;
 	context->m_impl->m_mdxReservedMemoryPoolSize = mdxsize;
 
 	void *pdxOnMemoryPool = MxdrvContextImpl_ReserveMemory(context->m_impl, pdxsize);
-	if (pdxOnMemoryPool == NULL) return;
+	if (pdxOnMemoryPool == NULL) return MXDRV_ERR_MEMORY;
 	context->m_impl->m_pdxReservedMemoryPoolSize = pdxsize;
 
 	memcpy(mdxOnMemoryPool, mdx, mdxsize);
@@ -712,6 +712,8 @@ void MXDRV_SetData2(
 	} else {
 		G.L002231 = CLR;
 	}
+
+	return 0;
 }
 
 void MXDRV_Play(
@@ -728,12 +730,13 @@ void MXDRV_Play(
 	DWORD pdxsize
 #endif
 ) {
-	MXDRV_SetData2(
+	int ret = MXDRV_SetData2(
 #if MXDRV_ENABLE_PORTABLE_CODE
 		context,
 #endif
 		mdx, mdxsize, pdx, pdxsize
 	);
+	if (ret != 0) return;
 
 	MXDRV_Play2(
 #if MXDRV_ENABLE_PORTABLE_CODE
@@ -916,12 +919,13 @@ DWORD MXDRV_MeasurePlayTime(
 	int fadeout
 #endif
 ) {
-	MXDRV_SetData2(
+	int ret = MXDRV_SetData2(
 #if MXDRV_ENABLE_PORTABLE_CODE
 		context,
 #endif
 		mdx, mdxsize, pdx, pdxsize
 	);
+	if (ret != 0) return 0;
 
 	return MXDRV_MeasurePlayTime2(
 #if MXDRV_ENABLE_PORTABLE_CODE
@@ -965,6 +969,12 @@ void MXDRV_PlayAt(
 	LoopLimit = loop;
 	FadeoutStart = FALSE;
 	ReqFadeout = fadeout;
+
+#if MXDRV_ENABLE_PORTABLE_CODE
+	L_PLAY(context);
+#else
+	L_PLAY();
+#endif
 
 	playat = (DWORD)(playat*(LONGLONG)4000/1024);
 

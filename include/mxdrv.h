@@ -178,7 +178,7 @@ int MXDRV_GetPCM(
 	int len
 );
 
-void MXDRV_SetData2(
+int MXDRV_SetData2(
 	MxdrvContext *context,
 	void *mdx,
 	uint32_t mdxsize,
