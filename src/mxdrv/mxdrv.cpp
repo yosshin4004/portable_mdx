@@ -897,7 +897,9 @@ uint32_t MXDRV_MeasurePlayTime2(
 	X68Sound_OpmInt( &OPMINTFUNC );
 #endif
 
-	return ( (DWORD)(G.PLAYTIME*(LONGLONG)1024/4000+(1-DBL_EPSILON))+2000 );
+	uint32_t ret = (DWORD)(G.PLAYTIME*(LONGLONG)1024/4000+(1-DBL_EPSILON))+2000;
+	G.PLAYTIME = 0;
+	return ret;
 }
 
 #if MXDRV_ENABLE_PORTABLE_CODE
