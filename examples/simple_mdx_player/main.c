@@ -478,29 +478,32 @@ int main(
 		}
 
 		/* PCM8 を有効化 */
-		uint8_t *pcm8EnableFlag = (uint8_t *)MXDRV_GetWork(&context, MXDRV_WORK_PCM8);
-		*(pcm8EnableFlag) = 1;
+		MXDRV_PCM8Enable(&context, 1);
 
 		/* 音量設定 */
 		MXDRV_TotalVolume(&context, 256);
 
-		/* 再生時間を求める */
+		/* MDX PDX バッファをセット */
 		{
-			float songDurationInSeconds = MXDRV_MeasurePlayTime(
+			int ret = MXDRV_SetData2(
 				&context,
 				mdxBuffer, mdxBufferSizeInBytes,
-				pdxBuffer, pdxBufferSizeInBytes,
-				1, 0
-			) / 1000.0f;
+				pdxBuffer, pdxBufferSizeInBytes
+			);
+			if (ret != 0) {
+				printf("MXDRV_SetData2 failed. return code = %d\n", ret);
+				exit(EXIT_FAILURE);
+			}
+		}
+
+		/* 再生時間を求める */
+		{
+			float songDurationInSeconds = MXDRV_MeasurePlayTime2(&context, 1, 0) / 1000.0f;
 			printf("song duration %.1f(sec)\n", songDurationInSeconds);
 		}
 
 		/* MDX 再生 */
-		MXDRV_Play(
-			&context,
-			mdxBuffer, mdxBufferSizeInBytes,
-			pdxBuffer, pdxBufferSizeInBytes
-		);
+		MXDRV_Play2(&context);
 
 		/* MDX デコードスレッドの初期化と開始 */
 		startMdxDecodeThread(&context);
