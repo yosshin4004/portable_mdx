@@ -253,6 +253,9 @@ int X68Sound_Pcm8_Abort(X68SoundContext *context) {
 int X68Sound_TotalVolume(X68SoundContext *context, int v) {
 	return context->m_impl->m_opm.SetTotalVolume(v);
 }
+int X68Sound_GetTotalVolume(X68SoundContext *context) {
+	return context->m_impl->m_opm.GetTotalVolume();
+}
 
 
 int X68Sound_ErrorCode(X68SoundContext *context) {
@@ -365,6 +368,9 @@ extern "C" int X68Sound_Pcm8_Abort() {
 
 extern "C" int X68Sound_TotalVolume(int v) {
 	return opm.SetTotalVolume(v);
+}
+extern "C" int X68Sound_GetTotalVolume(void) {
+	return opm.GetTotalVolume();
 }
 
 

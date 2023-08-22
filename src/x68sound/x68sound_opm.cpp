@@ -6,7 +6,6 @@
 #include "x68sound.h"
 #include "x68sound_context.internal.h"
 
-
 void Opm::SetAdpcmRate() {
 	adpcm.SetAdpcmRate(ADPCMRATETBL[AdpcmBaseClock][(PpiReg>>2)&3]);
 }
@@ -104,11 +103,14 @@ void Opm::CulcCmndRate() {
 
 void Opm::Reset() {
 	// OPMコマンドバッファを初期化
-	NumCmnd = 0;
-	CmndReadIdx = CmndWriteIdx = 0;
+	{
+		m_mtxCmnd.lock();
+		NumCmnd = 0;
+		CmndReadIdx = CmndWriteIdx = 0;
+		CulcCmndRate();
+		m_mtxCmnd.unlock();
+	}
 
-	CulcCmndRate();
-	
 	// 高音フィルター用バッファをクリア
 	InpInpOpm[0] = InpInpOpm[1] =
 	InpInpOpm_prev[0] = InpInpOpm_prev[1] = 0;
@@ -483,19 +485,15 @@ void Opm::OpmReg(unsigned char no) {
 	OpmRegNo = no;
 }
 void Opm::OpmPoke(unsigned char data) {
-	if (NumCmnd < CMNDBUFSIZE) {
-		CmndBuf[CmndWriteIdx][0] = OpmRegNo;
-		CmndBuf[CmndWriteIdx][1] = data;
-		++CmndWriteIdx; CmndWriteIdx&=CMNDBUFSIZE;
-#if X68SOUND_ENABLE_PORTABLE_CODE
-		++NumCmnd;
-#else
-		// ++NumCmnd;
-		__asm {
-			mov ebx,this
-			lock inc [ebx].NumCmnd
+	{
+		m_mtxCmnd.lock();
+		if (NumCmnd < CMNDBUFSIZE) {
+			CmndBuf[CmndWriteIdx][0] = OpmRegNo;
+			CmndBuf[CmndWriteIdx][1] = data;
+			++CmndWriteIdx; CmndWriteIdx&=CMNDBUFSIZE;
+			++NumCmnd;
 		}
-#endif
+		m_mtxCmnd.unlock();
 	}
 
 	switch (OpmRegNo) {
@@ -570,23 +568,19 @@ void Opm::ExecuteCmnd() {
 	while (rate < 0) {
 	rate += 4096;
 #endif
-	
-	
+
 	if (NumCmnd != 0) {
 
-	unsigned char	regno,data;
-	regno = CmndBuf[CmndReadIdx][0];
-	data = CmndBuf[CmndReadIdx][1];
-	++CmndReadIdx; CmndReadIdx&=CMNDBUFSIZE;
-#if X68SOUND_ENABLE_PORTABLE_CODE
-	--NumCmnd;
-#else
-	__asm {
-		mov ebx,this
-		lock dec [ebx].NumCmnd
+	unsigned char regno, data;
+	{
+		m_mtxCmnd.lock();
+		regno = CmndBuf[CmndReadIdx][0];
+		data = CmndBuf[CmndReadIdx][1];
+		++CmndReadIdx;
+		CmndReadIdx &= CMNDBUFSIZE;
+		--NumCmnd;
+		m_mtxCmnd.unlock();
 	}
-#endif
-
 	switch (regno) {
 	case 0x01:
 	// LFO RESET
@@ -2062,6 +2056,10 @@ int Opm::SetTotalVolume(int v) {
 	if ((unsigned int)v <= 65535) {
 		TotalVolume = v;
 	}
+	return TotalVolume;
+}
+
+int Opm::GetTotalVolume(void) {
 	return TotalVolume;
 }
 

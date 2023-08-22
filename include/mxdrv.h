@@ -178,12 +178,24 @@ int MXDRV_GetPCM(
 	int len
 );
 
+int MXDRV_SetData2(
+	MxdrvContext *context,
+	void *mdx,
+	uint32_t mdxsize,
+	void *pdx,
+	uint32_t pdxsize
+);
+
 void MXDRV_Play(
 	MxdrvContext *context,
 	void *mdx,
 	uint32_t mdxsize,
 	void *pdx,
 	uint32_t pdxsize
+);
+
+void MXDRV_Play2(
+	MxdrvContext *context
 );
 
 void volatile *MXDRV_GetWork(
@@ -206,6 +218,12 @@ uint32_t MXDRV_MeasurePlayTime(
 	int fadeout
 );
 
+uint32_t MXDRV_MeasurePlayTime2(
+	MxdrvContext *context,
+	int loop,
+	int fadeout
+);
+
 void MXDRV_PlayAt(
 	MxdrvContext *context,
 	uint32_t playat,
@@ -213,9 +231,39 @@ void MXDRV_PlayAt(
 	int fadeout
 );
 
+uint32_t MXDRV_GetPlayAt(
+	MxdrvContext *context
+);
+
+int MXDRV_GetTerminated(
+	MxdrvContext *context
+);
+
 int MXDRV_TotalVolume(
 	MxdrvContext *context,
 	int vol
+);
+
+int MXDRV_GetTotalVolume(
+	MxdrvContext *context
+);
+
+void MXDRV_ChannelMask(
+	MxdrvContext *context,
+	int mask
+);
+
+int MXDRV_GetChannelMask(
+	MxdrvContext *context
+);
+
+void MXDRV_PCM8Enable(
+	MxdrvContext *context,
+	int sw
+);
+
+int MXDRV_GetPCM8Enable(
+	MxdrvContext *context
 );
 
 
