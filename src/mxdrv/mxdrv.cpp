@@ -1543,9 +1543,9 @@ static void L_11(
 #endif
 ) {
 	if ( (SLONG)D1 < 0 ) {
-		G.L001e0e = (UBYTE)D1;
-	} else {
 		D0 = G.L001e0e;
+	} else {
+		G.L001e0e = (UBYTE)D1;
 	}
 }
 
