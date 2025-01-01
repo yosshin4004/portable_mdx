@@ -1,6 +1,6 @@
 examples/simple_mdx2wav/objs
 examples/simple_mdx2wav/simple_mdx2wav
 examples/simple_mdx2wav/simple_mdx2wav.exe
-examples/simple_player/objs
-examples/simple_player/simple_player
-examples/simple_player/simple_player.exe
+examples/simple_mdx_player/objs
+examples/simple_mdx_player/simple_mdx_player
+examples/simple_mdx_player/simple_mdx_player.exe
