@@ -11,11 +11,10 @@
 #include <mxdrv.h>
 #include <mxdrv_context.h>
 
+#include <SDL.h>
 #ifdef _WIN32
 	#include <Windows.h>
-	#include <SDL.h>
 #else
-	#include <SDL2/SDL.h>
 	#include <libgen.h>		/* for dirname() */
 #endif
 
