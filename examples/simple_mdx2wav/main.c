@@ -137,6 +137,7 @@ int main(
 ){
 	char *mdxFilePath = NULL;
 	char *wavFilePath = NULL;
+	int samplesPerSec = 48000;
 
 	/* 引数解析 */
 	if (argc == 1) {
@@ -148,7 +149,10 @@ int main(
 			"	-i <mdxfilepath>:\n"
 			"		Specify a input mdx filepath.\n"
 			"	-o <wavfilepath>:\n"
-			"		Specify a output wav filepath.\n",
+			"		Specify a output wav filepath.\n"
+			"	-r <samplerate>:\n"
+			"		Specify a output sampling rate.\n"
+			"		44100, 48000 or 96000. (default 48000)\n",
 			argv[0]
 		);
 		exit(EXIT_SUCCESS);
@@ -171,6 +175,21 @@ int main(
 						return EXIT_FAILURE;
 					}
 					wavFilePath = argv[i];
+				} else
+				if (strcmp(argv[i], "-r") == 0) {
+					i++;
+					if (i >= argc) {
+						printf("ERROR : No arg for '%s'.\n", argv[i - 1]);
+						return EXIT_FAILURE;
+					}
+					samplesPerSec = atoi(argv[i]);
+					if (samplesPerSec != 44100
+					 && samplesPerSec != 48000
+					 && samplesPerSec != 96000
+					) {
+						printf("ERROR : Invalid sampling rate '%s'.\n", argv[i]);
+						return EXIT_FAILURE;
+					}
 				} else {
 					printf("ERROR : Invalid arg '%s'.\n", argv[i]);
 					return EXIT_FAILURE;
@@ -367,11 +386,10 @@ int main(
 	}
 
 	/* MXDRV の初期化 */
-	#define NUM_SAMPLES_PER_SEC 48000
 	{
 		int ret = MXDRV_Start(
 			&context,
-			NUM_SAMPLES_PER_SEC,
+			samplesPerSec,
 			0, 0, 0,
 			MDX_BUFFER_SIZE,
 			PDX_BUFFER_SIZE,
@@ -410,7 +428,7 @@ int main(
 	MXDRV_Play2(&context);
 
 	/* wav 保存バッファの確保 */
-	int numSamples = (int)(NUM_SAMPLES_PER_SEC * songDurationInSeconds);
+	int numSamples = (int)(samplesPerSec * songDurationInSeconds);
 	int numChannels = 2;
 	int wavBufferSizeInBytes = sizeof(int16_t) * numSamples * numChannels;
 	int16_t *wavBuffer = (int16_t *)malloc(wavBufferSizeInBytes);
@@ -429,7 +447,7 @@ int main(
 			wavBuffer,
 			numChannels,
 			numSamples,
-			NUM_SAMPLES_PER_SEC,
+			samplesPerSec,
 			1 /* WAVE_FORMAT_PCM */,
 			16
 		) == false
