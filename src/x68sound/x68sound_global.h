@@ -440,6 +440,20 @@ static short OPMLOWPASS_48[OPMLPF_ROW_48][OPMLPF_COL] = {
 	#include "opmlowpass_48.dat"
 };
 
+// 96000Hz 出力用。62500Hz からの「補間」になるので、44100/48000 と違って
+// 折り返し像は入力ナイキスト (31250Hz) のすぐ上から現れる。そこを阻止端に
+// して像を頭から潰してある（通過端 26500Hz / 阻止端 31000Hz / Kaiser 窓、
+// 阻止域は 74dB 以上）。表は tools/make_opmlowpass.py で生成する。
+#define	OPMLPF_ROW_96	192
+#if X68SOUND_ENABLE_PORTABLE_CODE
+static const short OPMLOWPASS_96[OPMLPF_ROW_96][OPMLPF_COL] = {
+#else
+static double opmlowpass_dummy_96;	// 64bit境界合わせ
+static short OPMLOWPASS_96[OPMLPF_ROW_96][OPMLPF_COL] = {
+#endif
+	#include "opmlowpass_96.dat"
+};
+
 #if X68SOUND_ENABLE_PORTABLE_CODE
 	/* X68SoundContext に移動 */
 #else

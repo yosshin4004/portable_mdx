@@ -15,6 +15,15 @@ extern "C" {
 #define X68SNDERR_DLL			(-1)
 #define X68SNDERR_FUNC			(-2)
 
+/* 96kHz 出力に対応しているか。
+   この版は 62500Hz からの補間フィルタ (opmlowpass_96.dat) を持っていて、
+   samprate に 96000 を渡せる。対応していない版にはこのマクロが無いので、
+   利用側は #ifdef で分岐できる。 */
+#define X68SOUND_SUPPORT_96KHZ	1
+
+/* samprate に指定できるのは 44100 / 48000（と X68SOUND_SUPPORT_96KHZ が
+   定義されていれば 96000）。それ以外を渡すと 22050 として扱われる
+   （エラーにはならない）。 */
 int X68Sound_Start(struct tagX68SoundContext *context, int samprate/*=44100*/, int opmflag/*=1*/, int adpcmflag/*=1*/,
 		  int betw/*=5*/, int pcmbuf/*=5*/, int late/*=200*/, double rev/*=1.0*/);
 int X68Sound_Samprate(struct tagX68SoundContext *context, int samprate/*=44100*/);
