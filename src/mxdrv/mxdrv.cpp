@@ -493,6 +493,9 @@ void MXDRV_End(
 #endif
 	MXCALLBACK_OPMINT = NULL;
 	OPMINT_FUNC = NULL;
+#if MXDRV_ENABLE_PORTABLE_CODE
+	MXCALLBACK_OPMWRITE = NULL;
+#endif
 
 #if MXDRV_ENABLE_PORTABLE_CODE
 	if (context->m_impl->m_pdxReservedMemoryPoolSize != 0) {
@@ -792,6 +795,18 @@ void volatile *MXDRV_GetWork(
 	}
 	return (NULL);
 }
+
+/***************************************************************/
+
+#if MXDRV_ENABLE_PORTABLE_CODE
+/* gorry/portable_mdx の拡張。mxdrv.h を見ること。 */
+void MXDRV_SetOpmWriteCallback(
+	MxdrvContext *context,
+	MXCALLBACK_OPMWRITEFUNC *func
+) {
+	MXCALLBACK_OPMWRITE = func;
+}
+#endif
 
 /***************************************************************/
 
@@ -1126,6 +1141,12 @@ static void OPM_SUB(
 
 #if MXDRV_ENABLE_PORTABLE_CODE
 	_iocs_opmset( context, (BYTE)D1, (BYTE)D2 );
+	/* gorry/portable_mdx の拡張: 書き込みを利用側へ知らせる (mxdrv.h の
+	   MXDRV_SetOpmWriteCallback)。空回し中 (MeasurePlayTime) は上で return
+	   しているので届かない。 */
+	if ( MXCALLBACK_OPMWRITE != NULL ) {
+		MXCALLBACK_OPMWRITE( context, (uint8_t)(D1 & 0xff), (uint8_t)(D2 & 0xff) );
+	}
 #else
 	_iocs_opmset( (BYTE)D1, (BYTE)D2 );
 #endif
