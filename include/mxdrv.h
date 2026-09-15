@@ -142,6 +142,20 @@ typedef int8_t MXWORK_OPM[256];
 
 typedef void MXCALLBACK_OPMINTFUNC( void );
 
+/* OPM レジスタ書き込みの通知（gorry/portable_mdx の拡張。本家には無い）。
+   MXDRV が OPM レジスタへ書く（L_WRITEOPM → OPM_SUB）たびに、実際の書き込みの
+   直後に reg / data を渡して呼ぶ。MXDRV_MeasurePlayTime2 で曲を空回ししている
+   間（MeasurePlayTime）は実際の書き込みが無いので呼ばれない。
+   呼び出し元は OPM 割り込み処理の中（MXDRV_GetPCM の内側、クリティカル
+   セクション保持中）なので、重い処理と MXDRV への再入は禁止。
+   利用側は MXDRV_SUPPORT_OPMWRITE_CALLBACK を #ifdef で見ること
+   （本家の portable_mdx と繋いでも通るように）。
+   なお MXDRV 自身も全レジスタの最終値を MXDRV_WORK_OPM（MXWORK_OPM[256]）に
+   残している。$19 のように 1 つの番地へ 2 種類の値（PMD / AMD）を書き分ける
+   レジスタは最後の 1 つしか残らないので、両方欲しいときにこの通知を使う。 */
+#define MXDRV_SUPPORT_OPMWRITE_CALLBACK	1
+typedef void MXCALLBACK_OPMWRITEFUNC( MxdrvContext *context, uint8_t reg, uint8_t data );
+
 enum {
 	MXDRV_WORK_FM = 0,		// FM8ch+PCM1ch
 	MXDRV_WORK_PCM,			// PCM7ch
@@ -201,6 +215,13 @@ void MXDRV_Play2(
 void volatile *MXDRV_GetWork(
 	const MxdrvContext *context,
 	int i
+);
+
+/* OPM レジスタ書き込みの通知先を設定する（NULL で解除。MXDRV_End でも解除
+   される）。MXDRV_Start の後で呼ぶこと。 */
+void MXDRV_SetOpmWriteCallback(
+	MxdrvContext *context,
+	MXCALLBACK_OPMWRITEFUNC *func
 );
 
 void MXDRV(

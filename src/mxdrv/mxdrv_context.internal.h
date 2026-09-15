@@ -40,6 +40,9 @@ typedef struct tagMxdrvContextImpl {
 
 	void(*m_OPMINT_FUNC)( MxdrvContext *context );
 	void (*m_MXCALLBACK_OPMINT)( MxdrvContext *context );
+	/* OPM レジスタ書き込みの通知先（mxdrv.h の MXDRV_SetOpmWriteCallback）。
+	   NULL なら通知しない。 */
+	void (*m_MXCALLBACK_OPMWRITE)( MxdrvContext *context, uint8_t reg, uint8_t data );
 
 	BOOL volatile m_MeasurePlayTime;
 	BOOL volatile m_TerminatePlay;
@@ -166,6 +169,7 @@ static inline uint8_t *MxdrvContext_ToPtr(
 #define DisposeStack_L00122e	(context->m_impl->m_DisposeStack_L00122e)
 #define OPMINT_FUNC				(context->m_impl->m_OPMINT_FUNC)
 #define MXCALLBACK_OPMINT		(context->m_impl->m_MXCALLBACK_OPMINT)
+#define MXCALLBACK_OPMWRITE		(context->m_impl->m_MXCALLBACK_OPMWRITE)
 #define MeasurePlayTime			(context->m_impl->m_MeasurePlayTime)
 #define TerminatePlay			(context->m_impl->m_TerminatePlay)
 #define LoopCount				(context->m_impl->m_LoopCount)
