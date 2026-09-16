@@ -13,6 +13,11 @@
 #endif
 
 
+/* OPM コマンドバッファの既定の大きさ。**マスクとして使う**ので
+   「2 のべき乗 - 1」でなければならない（確保数は +1）。
+   gorry/portable_mdx の拡張で実行時に変えられる
+   （X68Sound_SetCommandBufferSize。x68sound.h の
+   X68SOUND_SUPPORT_ADJUST_COMMAND_BUFFER_SIZE）。 */
 #define	CMNDBUFSIZE	65535
 #define	FlagBufSize	7
 
@@ -46,7 +51,9 @@ private:
 	Lfo	lfo;
 	int	SLOTTBL[8*4];
 
-	unsigned char	CmndBuf[CMNDBUFSIZE+1][2];
+	/* 確保数は CmndBufMask+1。大きさは実行時に変えられる（上の CMNDBUFSIZE）。 */
+	unsigned char	(*CmndBuf)[2];
+	int	CmndBufMask;	/* 2 のべき乗 - 1。積める本数もこれと同じ */
 	volatile int	NumCmnd;
 	int	CmndReadIdx,CmndWriteIdx;
 	int CmndRate;
@@ -175,6 +182,13 @@ public:
 	int SetOpmClock(int clock);
 	int WaveAndTimerStart();
 	int SetOpmWait(int wait);
+	/* OPM コマンドバッファの大きさ（gorry/portable_mdx の拡張）。
+	   entries は積みたい本数。2 のべき乗へ切り上げて確保し直す。
+	   **積んである内容は捨てる**ので、鳴らし始める前に呼ぶこと。
+	   戻り値は 0 か X68SNDERR_*。 */
+	int SetCommandBufferSize(int entries);
+	int GetCommandBufferSize() const { return CmndBufMask; }
+	int GetCommandBufferUsed() const { return NumCmnd; }
 	void CulcCmndRate();
 	void Reset();
 	void ResetSamprate();

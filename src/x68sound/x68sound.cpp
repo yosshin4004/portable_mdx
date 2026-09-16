@@ -191,6 +191,15 @@ void X68Sound_OpmInt(X68SoundContext *context, void (*proc)(void *), void *arg) 
 int X68Sound_OpmWait(X68SoundContext *context, int wait) {
 	return context->m_impl->m_opm.SetOpmWait(wait);
 }
+int X68Sound_SetCommandBufferSize(X68SoundContext *context, int entries) {
+	return context->m_impl->m_opm.SetCommandBufferSize(entries);
+}
+int X68Sound_GetCommandBufferSize(X68SoundContext *context) {
+	return context->m_impl->m_opm.GetCommandBufferSize();
+}
+int X68Sound_GetCommandBufferUsed(X68SoundContext *context) {
+	return context->m_impl->m_opm.GetCommandBufferUsed();
+}
 
 unsigned char X68Sound_AdpcmPeek(X68SoundContext *context) {
 	return context->m_impl->m_opm.AdpcmPeek();
@@ -306,6 +315,15 @@ extern "C" void X68Sound_OpmInt(void (CALLBACK *proc)()) {
 }
 extern "C" int X68Sound_OpmWait(int wait) {
 	return opm.SetOpmWait(wait);
+}
+extern "C" int X68Sound_SetCommandBufferSize(int entries) {
+	return opm.SetCommandBufferSize(entries);
+}
+extern "C" int X68Sound_GetCommandBufferSize() {
+	return opm.GetCommandBufferSize();
+}
+extern "C" int X68Sound_GetCommandBufferUsed() {
+	return opm.GetCommandBufferUsed();
 }
 
 extern "C" unsigned char X68Sound_AdpcmPeek() {
