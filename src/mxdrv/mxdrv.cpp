@@ -806,6 +806,51 @@ void MXDRV_SetOpmWriteCallback(
 ) {
 	MXCALLBACK_OPMWRITE = func;
 }
+
+int MXDRV_SetX68SoundCommandBufferSize(
+	MxdrvContext *context,
+	int entries
+) {
+	return X68Sound_SetCommandBufferSize( &context->m_impl->m_x68SoundContext, entries );
+}
+
+int MXDRV_GetX68SoundCommandBufferSize(
+	MxdrvContext *context
+) {
+	return X68Sound_GetCommandBufferSize( &context->m_impl->m_x68SoundContext );
+}
+
+int MXDRV_GetX68SoundCommandBufferUsed(
+	MxdrvContext *context
+) {
+	return X68Sound_GetCommandBufferUsed( &context->m_impl->m_x68SoundContext );
+}
+
+int MXDRV_FlushX68SoundCommandBuffer(
+	MxdrvContext *context
+) {
+	X68SoundContext *sc = &context->m_impl->m_x68SoundContext;
+	if ( X68Sound_GetCommandBufferUsed( sc ) == 0 ) return 0;
+
+	/* 書き込み待ちを最短にして、消費を一気に進める。 */
+	int opmwaitback = X68Sound_OpmWait( sc, -1 );
+	X68Sound_OpmWait( sc, 1 );
+
+	/* 上限。空にならないとき（演奏が書き込みを足し続けるとき）の保険で、
+	   1 秒ぶんの PCM で打ち切る。 */
+	const int chunk = 256;
+	const int limit = 48000;
+	short scratch[256*2];
+	int frames = 0;
+	while ( X68Sound_GetCommandBufferUsed( sc ) != 0 ) {
+		X68Sound_GetPcm( sc, scratch, chunk );
+		frames += chunk;
+		if ( frames >= limit ) break;
+	}
+
+	X68Sound_OpmWait( sc, opmwaitback );
+	return frames;
+}
 #endif
 
 /***************************************************************/

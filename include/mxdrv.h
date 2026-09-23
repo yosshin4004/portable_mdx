@@ -224,6 +224,53 @@ void MXDRV_SetOpmWriteCallback(
 	MXCALLBACK_OPMWRITEFUNC *func
 );
 
+/* x68sound の OPM コマンドバッファの大きさを変える
+   （gorry/portable_mdx の拡張。本家には無い）。
+
+   MXDRV が OPM へ書いた内容は x68sound のコマンドバッファへ積まれ、
+   **PCM を作るあいだに**（実機の書き込み間隔の速さで）消費される。
+   MXDRV_PlayAt は目的の時刻まで「音を出さずに空回し」するが、その間は
+   PCM を作らないので消費する側が動かない。既定の 65535 本では
+   2 分 40 秒ぶんほどであふれ、**あとから来た書き込み——つまり飛び先に
+   近いほう——が黙って捨てられる**。長い曲でシークを使うなら、ここで
+   曲の長さに見合う大きさにしておくこと。
+
+   entries は積みたい本数。実際には 2 のべき乗へ切り上げて確保する
+   （1 本あたり 2 バイト）。**積んである内容は捨てる**ので、
+   MXDRV_Start の直後など、鳴らし始める前に呼ぶこと。
+   戻り値は 0 か X68SNDERR_*。
+   利用側は MXDRV_SUPPORT_ADJUST_X68SOUND_COMMAND_BUFFER_SIZE を
+   #ifdef で見ること（本家の portable_mdx と繋いでも通るように）。 */
+#define MXDRV_SUPPORT_ADJUST_X68SOUND_COMMAND_BUFFER_SIZE	1
+int MXDRV_SetX68SoundCommandBufferSize(
+	MxdrvContext *context,
+	int entries
+);
+/* 今の大きさ（積める本数）と、いま積まれている本数。 */
+int MXDRV_GetX68SoundCommandBufferSize(
+	MxdrvContext *context
+);
+int MXDRV_GetX68SoundCommandBufferUsed(
+	MxdrvContext *context
+);
+
+/* 溜まっている OPM への書き込みを、音を捨てながら一度に吐き出す
+   （gorry/portable_mdx の拡張。上と同じマクロで見分ける）。
+
+   MXDRV_PlayAt は音を出さずに空回しするので、その間に OPM へ書いた内容は
+   コマンドバッファに溜まったままになる。そのまま鳴らし始めると、
+   「曲の頭から飛び先まで」の古い設定が数秒かけて音源へ流れ込み、その間
+   おかしな音になる。**シークの直後にこれを呼ぶと**、溜まっているぶんを
+   先に音源へ入れてから鳴らし始められる。
+
+   吐き出しは PCM を作ることでしか進まないので、中で PCM を作って捨てる。
+   **その間だけ OPM の書き込み待ちを最短にする**ので、進む曲の時間は
+   ごくわずか（15 万本でも 20 ミリ秒ほど）で済む。
+   戻り値は作って捨てた PCM のフレーム数。 */
+int MXDRV_FlushX68SoundCommandBuffer(
+	MxdrvContext *context
+);
+
 void MXDRV(
 	MxdrvContext *context,
 	X68REG *reg

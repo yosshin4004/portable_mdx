@@ -1,4 +1,5 @@
 ﻿#include <math.h>
+#include <stdlib.h>
 #include <x68sound_context.h>
 #include "x68sound_config.h"
 #include "x68sound_global.h"
@@ -90,6 +91,45 @@ int Opm::SetOpmWait(int wait) {
 	}
 	return OpmWait;
 }
+/* OPM コマンドバッファの大きさを変える（gorry/portable_mdx の拡張）。
+   entries は積みたい本数。読み書きの添字はマスクで回しているので、
+   確保数は entries 以上の「2 のべき乗」にし、マスクをその -1 にする
+   （積める本数はマスクと同じ ＝ 1 枠は空けておく作り）。
+   **積んである内容は捨てる。** 鳴らし始める前に呼ぶこと。 */
+int Opm::SetCommandBufferSize(int entries) {
+	if (entries < 255) entries = 255;
+	/* entries + 1 以上の 2 のべき乗を探す。int の範囲を超えたら弾く。 */
+	int alloc = 256;
+	while (alloc <= entries) {
+		if (alloc > (1 << 29)) return X68SNDERR_BADARG;
+		alloc <<= 1;
+	}
+	if (CmndBuf != NULL && alloc == CmndBufMask + 1) {
+		/* 大きさが変わらないなら中身だけ捨てる。 */
+		m_mtxCmnd.lock();
+		NumCmnd = 0;
+		CmndReadIdx = CmndWriteIdx = 0;
+		CulcCmndRate();
+		m_mtxCmnd.unlock();
+		return 0;
+	}
+
+	unsigned char (*buf)[2] = (unsigned char (*)[2])malloc((size_t)alloc * 2);
+	if (buf == NULL) return X68SNDERR_MEMORY;
+
+	m_mtxCmnd.lock();
+	unsigned char (*old)[2] = CmndBuf;
+	CmndBuf = buf;
+	CmndBufMask = alloc - 1;
+	NumCmnd = 0;
+	CmndReadIdx = CmndWriteIdx = 0;
+	CulcCmndRate();
+	m_mtxCmnd.unlock();
+
+	if (old != NULL) free(old);
+	return 0;
+}
+
 void Opm::CulcCmndRate() {
 	if (OpmWait != 0) {
 		CmndRate = (4096*160/OpmWait);
@@ -97,7 +137,7 @@ void Opm::CulcCmndRate() {
 			CmndRate = 1;
 		}
 	} else {
-		CmndRate = 4096*CMNDBUFSIZE;
+		CmndRate = 4096*CmndBufMask;
 	}
 }
 
@@ -336,6 +376,15 @@ Opm::Opm(void) {
 #endif
 	Author = "m_puusan";
 
+	/* OPM コマンドバッファ。既定の大きさで確保しておき、要るなら
+	   SetCommandBufferSize で取り直す（gorry/portable_mdx の拡張）。
+	   確保できなければ CmndBuf は NULL のままで、OpmPoke が黙って捨てる。 */
+	CmndBuf = NULL;
+	CmndBufMask = 0;
+	NumCmnd = 0;
+	CmndReadIdx = CmndWriteIdx = 0;
+	SetCommandBufferSize(CMNDBUFSIZE);
+
 #if X68SOUND_ENABLE_PORTABLE_CODE
 	RateForExecuteCmnd = 0;
 	RateForPcmset62 = 0;
@@ -487,10 +536,10 @@ void Opm::OpmReg(unsigned char no) {
 void Opm::OpmPoke(unsigned char data) {
 	{
 		m_mtxCmnd.lock();
-		if (NumCmnd < CMNDBUFSIZE) {
+		if (CmndBuf != NULL && NumCmnd < CmndBufMask) {
 			CmndBuf[CmndWriteIdx][0] = OpmRegNo;
 			CmndBuf[CmndWriteIdx][1] = data;
-			++CmndWriteIdx; CmndWriteIdx&=CMNDBUFSIZE;
+			++CmndWriteIdx; CmndWriteIdx&=CmndBufMask;
 			++NumCmnd;
 		}
 		m_mtxCmnd.unlock();
@@ -569,7 +618,7 @@ void Opm::ExecuteCmnd() {
 	rate += 4096;
 #endif
 
-	if (NumCmnd != 0) {
+	if (NumCmnd != 0 && CmndBuf != NULL) {
 
 	unsigned char regno, data;
 	{
@@ -577,7 +626,7 @@ void Opm::ExecuteCmnd() {
 		regno = CmndBuf[CmndReadIdx][0];
 		data = CmndBuf[CmndReadIdx][1];
 		++CmndReadIdx;
-		CmndReadIdx &= CMNDBUFSIZE;
+		CmndReadIdx &= CmndBufMask;
 		--NumCmnd;
 		m_mtxCmnd.unlock();
 	}
@@ -1724,6 +1773,11 @@ void Opm::Free() {
 
 Opm::~Opm() {
 	Free();
+	if (CmndBuf != NULL) {
+		free(CmndBuf);
+		CmndBuf = NULL;
+		CmndBufMask = 0;
+	}
 }
 
 

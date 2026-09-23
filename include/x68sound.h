@@ -41,6 +41,25 @@ void X68Sound_OpmInt(struct tagX68SoundContext *context, void (*proc)(void *), v
 int X68Sound_OpmWait(struct tagX68SoundContext *context, int wait/*=240*/);
 int X68Sound_OpmClock(struct tagX68SoundContext *context, int clock/*=4000000*/);
 
+/* OPM コマンドバッファの大きさ（gorry/portable_mdx の拡張。本家には無い）。
+
+   X68Sound_OpmPoke で積まれた書き込みは、PCM を作るあいだに
+   （実機の書き込み間隔 X68Sound_OpmWait の速さで）消費される。
+   **PCM を作らずに OPM へ書き続ける使い方**——MXDRV_PlayAt のような
+   「音を出さない空回し」——では消費する側が動かないので、既定の
+   CMNDBUFSIZE (65535) 本ではあふれて、あとから来た書き込みが捨てられる。
+   そのときはここで大きくしておく。
+
+   entries は積みたい本数。実際には 2 のべき乗へ切り上げて確保する
+   （1 本あたり 2 バイト）。**積んである内容は捨てる**ので、鳴らし始める
+   前に呼ぶこと。戻り値は 0 か X68SNDERR_*。
+   利用側は X68SOUND_SUPPORT_ADJUST_COMMAND_BUFFER_SIZE を #ifdef で見ること。 */
+#define X68SOUND_SUPPORT_ADJUST_COMMAND_BUFFER_SIZE	1
+int X68Sound_SetCommandBufferSize(struct tagX68SoundContext *context, int entries);
+/* 今の大きさ（積める本数）と、いま積まれている本数。 */
+int X68Sound_GetCommandBufferSize(struct tagX68SoundContext *context);
+int X68Sound_GetCommandBufferUsed(struct tagX68SoundContext *context);
+
 unsigned char X68Sound_AdpcmPeek(struct tagX68SoundContext *context);
 void X68Sound_AdpcmPoke(struct tagX68SoundContext *context, unsigned char data);
 unsigned char X68Sound_PpiPeek(struct tagX68SoundContext *context);
