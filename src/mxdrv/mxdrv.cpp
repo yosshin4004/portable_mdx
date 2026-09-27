@@ -10035,9 +10035,11 @@ static void L0017a0(
 		if ( !*TO_PTR(A4++) ) goto L0017ac;
 		p->S0017 |= 0x80;
 	}
+	return;
 #else
 	if ( !*(A4++) ) goto L0017ac;
 	A6->S0017 |= 0x80;
+	return;
 #endif
 
 L0017ac:;
