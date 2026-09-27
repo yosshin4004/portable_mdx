@@ -9595,11 +9595,11 @@ L0016aa:;
 */
 #if MXDRV_ENABLE_PORTABLE_CODE
 	D0 = *TO_PTR(A4++);
-	if ( D0 > 7 ) { L001442( context ); return; }
+	if ( D0 >= 7 ) { L001442( context ); return; }
 	L0016aa[D0]( context );
 #else
 	D0 = *(A4++);
-	if ( D0 > 7 ) { L001442(); return; }
+	if ( D0 >= 7 ) { L001442(); return; }
 	L0016aa[D0]();
 #endif
 }
